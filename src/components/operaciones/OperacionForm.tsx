@@ -1,0 +1,476 @@
+'use client'
+
+import { useState, useEffect, useTransition } from 'react'
+import { X, Sparkles, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react'
+import { cn, calcOperation, suggestPayoutPct, formatCLP, formatUSD, formatPct } from '@/lib/utils'
+import type { OperationStatus } from '@/types'
+import { createOperation, type CreateOperationInput } from '@/app/operaciones/actions'
+
+// ─── Estilos de inputs reutilizables ───────────────────────────────────────
+const input = 'w-full bg-slate-800/60 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors'
+const label = 'block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5'
+
+function Field({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className={label}>{title}</label>
+      {children}
+      {hint && <p className="mt-1 text-xs text-slate-600">{hint}</p>}
+    </div>
+  )
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-4">
+      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">
+        {title}
+      </h3>
+      {children}
+    </div>
+  )
+}
+
+// ─── Tipos ─────────────────────────────────────────────────────────────────
+type FormValues = {
+  client_id: string
+  company_id: string
+  processor_id: string
+  operation_date: string
+  amount_usd: string
+  fx_rate_used: string
+  fx_source: string
+  client_payout_pct: string
+  processor_fee_pct: string
+  loan_fee_pct: string
+  payout_fee_pct: string
+  wire_fee_usd: string
+  receive_fee_usd: string
+  status: OperationStatus
+  notes: string
+}
+
+const INITIAL: FormValues = {
+  client_id: '',
+  company_id: '',
+  processor_id: '',
+  operation_date: new Date().toISOString().split('T')[0],
+  amount_usd: '',
+  fx_rate_used: '',
+  fx_source: '',
+  client_payout_pct: '',
+  processor_fee_pct: '0',
+  loan_fee_pct: '0',
+  payout_fee_pct: '0',
+  wire_fee_usd: '0',
+  receive_fee_usd: '0',
+  status: 'pendiente',
+  notes: '',
+}
+
+// ─── Props ─────────────────────────────────────────────────────────────────
+type Props = {
+  onClose: () => void
+  onSuccess: () => void
+}
+
+// ─── Componente ────────────────────────────────────────────────────────────
+export function OperacionForm({ onClose, onSuccess }: Props) {
+  const [form, setForm] = useState<FormValues>(INITIAL)
+  const [payoutManual, setPayoutManual] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+
+  const n = (v: string) => parseFloat(v) || 0
+
+  // Auto-sugerir payout_pct cuando cambia amount_usd
+  useEffect(() => {
+    if (payoutManual) return
+    const amt = n(form.amount_usd)
+    if (amt > 0) {
+      setForm(f => ({ ...f, client_payout_pct: String(suggestPayoutPct(amt)) }))
+    }
+  }, [form.amount_usd, payoutManual])
+
+  const calc = calcOperation({
+    amount_usd:        n(form.amount_usd),
+    fx_rate_used:      n(form.fx_rate_used),
+    client_payout_pct: n(form.client_payout_pct),
+    processor_fee_pct: n(form.processor_fee_pct),
+    loan_fee_pct:      n(form.loan_fee_pct),
+    payout_fee_pct:    n(form.payout_fee_pct),
+    wire_fee_usd:      n(form.wire_fee_usd),
+    receive_fee_usd:   n(form.receive_fee_usd),
+  })
+
+  const hasData = n(form.amount_usd) > 0 && n(form.fx_rate_used) > 0
+
+  function set(key: keyof FormValues) {
+    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+      setForm(f => ({ ...f, [key]: e.target.value }))
+      if (key === 'client_payout_pct') setPayoutManual(true)
+    }
+  }
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+
+    if (!form.client_id.trim()) { setError('El ID de cliente es obligatorio.'); return }
+    if (!form.operation_date)   { setError('La fecha es obligatoria.'); return }
+    if (!n(form.amount_usd))    { setError('El monto USD es obligatorio.'); return }
+    if (!n(form.fx_rate_used))  { setError('El tipo de cambio es obligatorio.'); return }
+
+    const payload: CreateOperationInput = {
+      client_id:         form.client_id.trim(),
+      company_id:        form.company_id.trim(),
+      processor_id:      form.processor_id.trim(),
+      operation_date:    form.operation_date,
+      amount_usd:        n(form.amount_usd),
+      client_payout_pct: n(form.client_payout_pct),
+      fx_rate_used:      n(form.fx_rate_used),
+      fx_source:         form.fx_source.trim(),
+      processor_fee_pct: n(form.processor_fee_pct),
+      loan_fee_pct:      n(form.loan_fee_pct),
+      payout_fee_pct:    n(form.payout_fee_pct),
+      wire_fee_usd:      n(form.wire_fee_usd),
+      receive_fee_usd:   n(form.receive_fee_usd),
+      status:            form.status,
+      notes:             form.notes.trim(),
+    }
+
+    startTransition(async () => {
+      const result = await createOperation(payload)
+      if (result.success) {
+        onSuccess()
+      } else {
+        setError(result.error)
+      }
+    })
+  }
+
+  return (
+    // Overlay
+    <div className="fixed inset-0 z-50 flex">
+      <div
+        className="flex-1 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Panel principal */}
+      <div className="w-full max-w-5xl flex flex-col bg-slate-950 border-l border-slate-800 shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
+          <div>
+            <h2 className="text-base font-semibold text-slate-100">Nueva Operación</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Ingresa los datos y revisa la calculadora antes de guardar</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Body: form + calculadora */}
+        <div className="flex flex-1 overflow-hidden">
+
+          {/* ── FORMULARIO (izquierda, scrollable) ── */}
+          <form
+            id="op-form"
+            onSubmit={handleSubmit}
+            className="flex-1 overflow-y-auto px-6 py-6 space-y-7"
+          >
+            {/* ── Identificación ── */}
+            <Section title="Identificación">
+              <div className="grid grid-cols-2 gap-4">
+                <Field title="Fecha de operación">
+                  <input type="date" className={input} value={form.operation_date} onChange={set('operation_date')} required />
+                </Field>
+                <Field title="Estado">
+                  <select className={cn(input, 'cursor-pointer')} value={form.status} onChange={set('status')}>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="en_proceso">En Proceso</option>
+                    <option value="completada">Completada</option>
+                    <option value="anulada">Anulada</option>
+                  </select>
+                </Field>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <Field title="ID Cliente" hint="Referencia al cliente">
+                  <input type="text" className={input} placeholder="CLI-001" value={form.client_id} onChange={set('client_id')} required />
+                </Field>
+                <Field title="ID Empresa" hint="Opcional">
+                  <input type="text" className={input} placeholder="EMP-001" value={form.company_id} onChange={set('company_id')} />
+                </Field>
+                <Field title="ID Procesador" hint="Opcional">
+                  <input type="text" className={input} placeholder="PROC-001" value={form.processor_id} onChange={set('processor_id')} />
+                </Field>
+              </div>
+            </Section>
+
+            {/* ── Monto y Tipo de Cambio ── */}
+            <Section title="Monto y Tipo de Cambio">
+              <div className="grid grid-cols-2 gap-4">
+                <Field title="Monto USD" hint="Importe de la operación en dólares">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className={input}
+                    placeholder="10000.00"
+                    value={form.amount_usd}
+                    onChange={set('amount_usd')}
+                    required
+                  />
+                </Field>
+                <Field title="Tipo de Cambio (USD → CLP)" hint="Tasa usada para convertir">
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    className={input}
+                    placeholder="930.0000"
+                    value={form.fx_rate_used}
+                    onChange={set('fx_rate_used')}
+                    required
+                  />
+                </Field>
+              </div>
+              <Field title="Fuente del Tipo de Cambio" hint="Ej: Bloomberg, Valor Nominal, SII">
+                <input type="text" className={input} placeholder="Bloomberg" value={form.fx_source} onChange={set('fx_source')} />
+              </Field>
+            </Section>
+
+            {/* ── Pago al Cliente ── */}
+            <Section title="Pago al Cliente">
+              <div className="grid grid-cols-2 gap-4 items-end">
+                <Field
+                  title="% Pago al Cliente"
+                  hint={payoutManual ? 'Valor editado manualmente' : 'Sugerido automáticamente según monto'}
+                >
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="100"
+                      className={cn(input, 'pr-16')}
+                      placeholder="79.00"
+                      value={form.client_payout_pct}
+                      onChange={set('client_payout_pct')}
+                      required
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">%</span>
+                  </div>
+                </Field>
+
+                <div className="pb-0.5">
+                  {!payoutManual && n(form.amount_usd) > 0 && (
+                    <div className="flex items-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-md px-3 py-2">
+                      <Sparkles className="w-3 h-3 flex-shrink-0" />
+                      <span>Sugerido: <strong>{suggestPayoutPct(n(form.amount_usd))}%</strong> para ${n(form.amount_usd).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {payoutManual && (
+                    <button
+                      type="button"
+                      className="text-xs text-slate-500 hover:text-blue-400 underline transition-colors"
+                      onClick={() => {
+                        setPayoutManual(false)
+                        const suggested = suggestPayoutPct(n(form.amount_usd))
+                        setForm(f => ({ ...f, client_payout_pct: String(suggested) }))
+                      }}
+                    >
+                      Restablecer sugerencia automática
+                    </button>
+                  )}
+                </div>
+              </div>
+            </Section>
+
+            {/* ── Comisiones ── */}
+            <Section title="Comisiones y Cargos">
+              <div className="grid grid-cols-3 gap-4">
+                <Field title="Fee Procesador (%)" hint="Sobre el monto bruto CLP">
+                  <div className="relative">
+                    <input type="number" step="0.0001" min="0" className={cn(input, 'pr-8')} placeholder="2.5000" value={form.processor_fee_pct} onChange={set('processor_fee_pct')} />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+                  </div>
+                </Field>
+                <Field title="Fee Préstamo (%)" hint="Sobre el monto bruto CLP">
+                  <div className="relative">
+                    <input type="number" step="0.0001" min="0" className={cn(input, 'pr-8')} placeholder="0.0000" value={form.loan_fee_pct} onChange={set('loan_fee_pct')} />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+                  </div>
+                </Field>
+                <Field title="Fee Payout (%)" hint="Sobre el monto bruto CLP">
+                  <div className="relative">
+                    <input type="number" step="0.0001" min="0" className={cn(input, 'pr-8')} placeholder="0.0000" value={form.payout_fee_pct} onChange={set('payout_fee_pct')} />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
+                  </div>
+                </Field>
+                <Field title="Wire Fee (USD)" hint="Cargo fijo en dólares">
+                  <div className="relative">
+                    <input type="number" step="0.01" min="0" className={cn(input, 'pl-7')} placeholder="0.00" value={form.wire_fee_usd} onChange={set('wire_fee_usd')} />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
+                  </div>
+                </Field>
+                <Field title="Receive Fee (USD)" hint="Cargo fijo en dólares">
+                  <div className="relative">
+                    <input type="number" step="0.01" min="0" className={cn(input, 'pl-7')} placeholder="0.00" value={form.receive_fee_usd} onChange={set('receive_fee_usd')} />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
+                  </div>
+                </Field>
+              </div>
+            </Section>
+
+            {/* ── Notas ── */}
+            <Section title="Notas">
+              <textarea
+                rows={3}
+                className={cn(input, 'resize-none')}
+                placeholder="Observaciones internas sobre esta operación..."
+                value={form.notes}
+                onChange={set('notes')}
+              />
+            </Section>
+          </form>
+
+          {/* ── CALCULADORA (derecha, sticky) ── */}
+          <div className="w-72 flex-shrink-0 border-l border-slate-800 bg-slate-900/50 flex flex-col">
+            <div className="px-5 pt-5 pb-3 border-b border-slate-800">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Calculadora</p>
+              <p className="text-xs text-slate-600 mt-0.5">Actualiza en tiempo real</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {!hasData ? (
+                <div className="text-center py-8">
+                  <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-3">
+                    <TrendingUp className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <p className="text-xs text-slate-600">Ingresa el monto USD<br />y el tipo de cambio</p>
+                </div>
+              ) : (
+                <>
+                  {/* Monto bruto */}
+                  <div className="bg-slate-800/60 rounded-lg p-3">
+                    <p className="text-xs text-slate-500 mb-1">Monto Bruto CLP</p>
+                    <p className="text-lg font-mono font-bold text-slate-100">{formatCLP(calc.gross_clp)}</p>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      {formatUSD(n(form.amount_usd))} × {n(form.fx_rate_used).toLocaleString('es-CL')}
+                    </p>
+                  </div>
+
+                  {/* Desglose de egresos */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Egresos</p>
+
+                    <CalcLine
+                      label={`Pago cliente (${formatPct(n(form.client_payout_pct), 1)})`}
+                      value={calc.amount_clp_paid}
+                      color="text-red-400"
+                    />
+                    {calc.fee_processor > 0 && (
+                      <CalcLine label={`Fee procesador (${formatPct(n(form.processor_fee_pct))})`} value={calc.fee_processor} color="text-slate-400" />
+                    )}
+                    {calc.fee_loan > 0 && (
+                      <CalcLine label={`Fee préstamo (${formatPct(n(form.loan_fee_pct))})`} value={calc.fee_loan} color="text-slate-400" />
+                    )}
+                    {calc.fee_payout > 0 && (
+                      <CalcLine label={`Fee payout (${formatPct(n(form.payout_fee_pct))})`} value={calc.fee_payout} color="text-slate-400" />
+                    )}
+                    {calc.fee_wire > 0 && (
+                      <CalcLine label={`Wire (${formatUSD(n(form.wire_fee_usd))})`} value={calc.fee_wire} color="text-slate-400" />
+                    )}
+                    {calc.fee_receive > 0 && (
+                      <CalcLine label={`Recepción (${formatUSD(n(form.receive_fee_usd))})`} value={calc.fee_receive} color="text-slate-400" />
+                    )}
+                  </div>
+
+                  {/* Utilidad */}
+                  <div className={cn(
+                    'rounded-xl p-4 border',
+                    calc.profit_clp >= 0
+                      ? 'bg-green-500/8 border-green-500/20'
+                      : 'bg-red-500/8 border-red-500/20'
+                  )}>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      {calc.profit_clp >= 0
+                        ? <TrendingUp className="w-3.5 h-3.5 text-green-400" />
+                        : <TrendingDown className="w-3.5 h-3.5 text-red-400" />
+                      }
+                      <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
+                        Utilidad Neta
+                      </span>
+                    </div>
+                    <p className={cn(
+                      'text-2xl font-mono font-bold',
+                      calc.profit_clp >= 0 ? 'text-green-400' : 'text-red-400'
+                    )}>
+                      {formatCLP(calc.profit_clp)}
+                    </p>
+                    <p className={cn(
+                      'text-sm font-mono mt-1',
+                      calc.profit_clp >= 0 ? 'text-green-500' : 'text-red-500'
+                    )}>
+                      {formatPct(calc.profit_margin)} del bruto
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-800 flex-shrink-0 bg-slate-950">
+          {error && (
+            <div className="flex items-center gap-2 text-xs text-red-400">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+          {!error && <div />}
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 border border-slate-700 rounded-md hover:bg-slate-800 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              form="op-form"
+              disabled={isPending}
+              className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {isPending ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Crear Operación'
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Helper: línea de cálculo ───────────────────────────────────────────────
+function CalcLine({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-slate-500 truncate mr-2">− {label}</span>
+      <span className={cn('font-mono flex-shrink-0', color)}>{formatCLP(value)}</span>
+    </div>
+  )
+}

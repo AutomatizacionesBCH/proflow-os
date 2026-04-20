@@ -134,44 +134,46 @@ export function OperacionesView({ initialOperations }: Props) {
 
       {/* ── Filtros ── */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* Búsqueda */}
-          <div className="flex items-center gap-2 flex-1 bg-slate-800/60 border border-slate-700 rounded-md px-3 py-2 focus-within:border-slate-600 transition-colors">
-            <Search className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
-            <input
-              type="text"
-              placeholder="Buscar por cliente, empresa, procesador..."
-              className="bg-transparent text-sm text-slate-300 placeholder:text-slate-600 outline-none w-full"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Búsqueda */}
+            <div className="flex items-center gap-2 flex-1 bg-slate-800/60 border border-slate-700 rounded-md px-3 py-2 focus-within:border-slate-600 transition-colors">
+              <Search className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+              <input
+                type="text"
+                placeholder="Buscar por cliente, empresa, procesador..."
+                className="bg-transparent text-sm text-slate-300 placeholder:text-slate-600 outline-none w-full"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+
+            {/* Botón nueva operación */}
+            <button
+              onClick={() => { setEditing(undefined); setShowForm(true) }}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors flex-shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              Nueva operación
+            </button>
           </div>
 
           {/* Fechas */}
           <div className="flex items-center gap-2">
             <input
               type="date"
-              className="bg-slate-800/60 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 outline-none focus:border-slate-600 transition-colors"
+              className="flex-1 min-w-0 bg-slate-800/60 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 outline-none focus:border-slate-600 transition-colors"
               value={dateFrom}
               onChange={e => setDateFrom(e.target.value)}
             />
-            <span className="text-slate-600 text-xs">→</span>
+            <span className="text-slate-600 text-xs flex-shrink-0">→</span>
             <input
               type="date"
-              className="bg-slate-800/60 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 outline-none focus:border-slate-600 transition-colors"
+              className="flex-1 min-w-0 bg-slate-800/60 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 outline-none focus:border-slate-600 transition-colors"
               value={dateTo}
               onChange={e => setDateTo(e.target.value)}
             />
           </div>
-
-          {/* Botón nueva operación */}
-          <button
-            onClick={() => { setEditing(undefined); setShowForm(true) }}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors flex-shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            Nueva operación
-          </button>
         </div>
 
         {/* Filtros de estado */}

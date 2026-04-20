@@ -15,7 +15,7 @@ export function KpiBox({ label, value, sub, positive, warn, danger, highlight }:
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 hover:border-slate-700 transition-colors">
       <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">{label}</p>
       <p className={cn(
-        'text-2xl font-bold font-mono leading-none',
+        'text-xl sm:text-2xl font-bold font-mono leading-none truncate',
         highlight ? 'text-purple-400' :
         danger    ? 'text-red-400'    :
         warn      ? 'text-amber-400'  :

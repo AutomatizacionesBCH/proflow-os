@@ -7,14 +7,16 @@ import type { NavItem } from '@/config/navigation'
 type SidebarItemProps = {
   item: NavItem
   isActive: boolean
+  onNavClick?: () => void
 }
 
-export function SidebarItem({ item, isActive }: SidebarItemProps) {
+export function SidebarItem({ item, isActive, onNavClick }: SidebarItemProps) {
   const Icon = item.icon
 
   return (
     <Link
       href={item.href}
+      onClick={onNavClick}
       className={cn(
         'relative flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors',
         isActive

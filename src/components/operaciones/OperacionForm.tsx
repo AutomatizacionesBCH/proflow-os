@@ -182,7 +182,7 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
       />
 
       {/* Panel principal */}
-      <div className="w-full max-w-5xl flex flex-col bg-slate-950 border-l border-slate-800 shadow-2xl">
+      <div className="w-full max-w-5xl flex flex-col bg-slate-950 border-l border-slate-800 shadow-2xl h-full overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
           <div>
@@ -198,7 +198,7 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
         </div>
 
         {/* Body: form + calculadora */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
 
           {/* ── FORMULARIO (izquierda, scrollable) ── */}
           <form
@@ -362,8 +362,8 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
             </Section>
           </form>
 
-          {/* ── CALCULADORA (derecha, sticky) ── */}
-          <div className="w-72 flex-shrink-0 border-l border-slate-800 bg-slate-900/50 flex flex-col">
+          {/* ── CALCULADORA (derecha en desktop, abajo en móvil) ── */}
+          <div className="sm:w-72 flex-shrink-0 border-t sm:border-t-0 sm:border-l border-slate-800 bg-slate-900/50 flex flex-col max-h-64 sm:max-h-none">
             <div className="px-5 pt-5 pb-3 border-b border-slate-800">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Calculadora</p>
               <p className="text-xs text-slate-600 mt-0.5">Actualiza en tiempo real</p>

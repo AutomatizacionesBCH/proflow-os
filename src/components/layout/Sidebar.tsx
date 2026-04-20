@@ -4,11 +4,11 @@ import { usePathname } from 'next/navigation'
 import { navItems } from '@/config/navigation'
 import { SidebarItem } from './SidebarItem'
 
-export function Sidebar() {
+export function Sidebar({ onNavClick }: { onNavClick?: () => void }) {
   const pathname = usePathname()
 
   return (
-    <aside className="w-60 flex-shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col h-screen">
+    <aside className="w-64 flex-shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col h-screen">
       {/* Logo */}
       <div className="h-16 flex items-center px-5 border-b border-slate-800">
         <div className="flex items-center gap-2.5">
@@ -34,6 +34,7 @@ export function Sidebar() {
             isActive={
               pathname === item.href || pathname.startsWith(item.href + '/')
             }
+            onNavClick={onNavClick}
           />
         ))}
       </nav>

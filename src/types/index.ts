@@ -60,10 +60,16 @@ export type Company = {
   created_at: string
 }
 
+export type ProcessorStatus = 'activo' | 'pausado' | 'en_riesgo'
+
 export type Processor = {
   id: string
   name: string
+  company_id: string | null
   type: string | null
+  status: ProcessorStatus | null
+  daily_limit_usd: number | null
+  notes: string | null
   created_at: string
 }
 
@@ -72,18 +78,4 @@ export type Lead = BaseEntity & {
   empresa: string
   valor_estimado: number
   etapa: 'nuevo' | 'contactado' | 'propuesta' | 'cerrado'
-}
-
-export type Procesador = BaseEntity & {
-  nombre: string
-  tipo: string
-  fee: number
-  estado: Status
-}
-
-export type Empresa = BaseEntity & {
-  razon_social: string
-  rfc: string
-  sector: string
-  estado: Status
 }

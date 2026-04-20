@@ -148,19 +148,31 @@ export interface Database {
         Row: {
           id: string
           name: string
+          company_id: string | null
           type: string | null
+          status: 'activo' | 'pausado' | 'en_riesgo'
+          daily_limit_usd: number | null
+          notes: string | null
           created_at: string
         }
         Insert: {
           id?: string
           name: string
+          company_id?: string | null
           type?: string | null
+          status?: 'activo' | 'pausado' | 'en_riesgo'
+          daily_limit_usd?: number | null
+          notes?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           name?: string
+          company_id?: string | null
           type?: string | null
+          status?: 'activo' | 'pausado' | 'en_riesgo'
+          daily_limit_usd?: number | null
+          notes?: string | null
         }
         Relationships: []
       }

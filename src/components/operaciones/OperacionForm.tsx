@@ -4,7 +4,8 @@ import { useState, useEffect, useTransition } from 'react'
 import { X, Sparkles, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react'
 import { cn, calcOperation, suggestPayoutPct, formatCLP, formatUSD, formatPct } from '@/lib/utils'
 import type { OperationStatus } from '@/types'
-import { createOperation, type CreateOperationInput } from '@/app/operaciones/actions'
+import { createOperation, updateOperation, type CreateOperationInput } from '@/app/operaciones/actions'
+import type { Operation } from '@/types'
 
 // ─── Estilos de inputs reutilizables ───────────────────────────────────────
 const input = 'w-full bg-slate-800/60 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-colors'
@@ -72,12 +73,33 @@ const INITIAL: FormValues = {
 type Props = {
   onClose: () => void
   onSuccess: () => void
+  editing?: Operation
 }
 
 // ─── Componente ────────────────────────────────────────────────────────────
-export function OperacionForm({ onClose, onSuccess }: Props) {
-  const [form, setForm] = useState<FormValues>(INITIAL)
-  const [payoutManual, setPayoutManual] = useState(false)
+export function OperacionForm({ onClose, onSuccess, editing }: Props) {
+  const [form, setForm] = useState<FormValues>(() =>
+    editing
+      ? {
+          client_id:         editing.client_id,
+          company_id:        editing.company_id ?? '',
+          processor_id:      editing.processor_id ?? '',
+          operation_date:    editing.operation_date,
+          amount_usd:        String(editing.amount_usd),
+          fx_rate_used:      String(editing.fx_rate_used),
+          fx_source:         '',
+          client_payout_pct: String(editing.client_payout_pct),
+          processor_fee_pct: String(editing.processor_fee_pct ?? 0),
+          loan_fee_pct:      String(editing.loan_fee_pct ?? 0),
+          payout_fee_pct:    String(editing.payout_fee_pct ?? 0),
+          wire_fee_usd:      String(editing.wire_fee_usd ?? 0),
+          receive_fee_usd:   String(editing.receive_fee_usd ?? 0),
+          status:            editing.status,
+          notes:             editing.notes ?? '',
+        }
+      : INITIAL
+  )
+  const [payoutManual, setPayoutManual] = useState(!!editing)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -140,7 +162,9 @@ export function OperacionForm({ onClose, onSuccess }: Props) {
     }
 
     startTransition(async () => {
-      const result = await createOperation(payload)
+      const result = editing
+        ? await updateOperation(editing.id, payload)
+        : await createOperation(payload)
       if (result.success) {
         onSuccess()
       } else {
@@ -162,7 +186,7 @@ export function OperacionForm({ onClose, onSuccess }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 flex-shrink-0">
           <div>
-            <h2 className="text-base font-semibold text-slate-100">Nueva Operación</h2>
+            <h2 className="text-base font-semibold text-slate-100">{editing ? 'Editar Operación' : 'Nueva Operación'}</h2>
             <p className="text-xs text-slate-500 mt-0.5">Ingresa los datos y revisa la calculadora antes de guardar</p>
           </div>
           <button
@@ -455,7 +479,7 @@ export function OperacionForm({ onClose, onSuccess }: Props) {
                   Guardando...
                 </>
               ) : (
-                'Crear Operación'
+                editing ? 'Guardar Cambios' : 'Crear Operación'
               )}
             </button>
           </div>

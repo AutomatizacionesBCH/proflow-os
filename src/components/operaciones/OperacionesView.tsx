@@ -2,12 +2,12 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Filter, Search, ChevronDown } from 'lucide-react'
+import { Plus, Filter, Search, ChevronDown, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import { cn, formatCLP, formatUSD, formatPct } from '@/lib/utils'
 import type { Operation, OperationStatus } from '@/types'
 import { OperacionStatusBadge } from './OperacionStatusBadge'
 import { OperacionForm } from './OperacionForm'
-import { updateOperationStatus } from '@/app/operaciones/actions'
+import { updateOperationStatus, deleteOperation } from '@/app/operaciones/actions'
 import { KpiBox } from '@/components/ui/KpiBox'
 
 const ALL_STATUSES: { value: OperationStatus | 'all'; label: string }[] = [
@@ -26,8 +26,11 @@ export function OperacionesView({ initialOperations }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
-  const [showForm, setShowForm] = useState(false)
-  const [search, setSearch]     = useState('')
+  const [showForm, setShowForm]   = useState(false)
+  const [editing, setEditing]     = useState<Operation | undefined>(undefined)
+  const [deleteTarget, setDeleteTarget] = useState<Operation | null>(null)
+  const [deleting, setDeleting]   = useState(false)
+  const [search, setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState<OperationStatus | 'all'>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo]     = useState('')
@@ -60,17 +63,65 @@ export function OperacionesView({ initialOperations }: Props) {
 
   function handleSuccess() {
     setShowForm(false)
+    setEditing(undefined)
+    startTransition(() => router.refresh())
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    await deleteOperation(deleteTarget.id)
+    setDeleting(false)
+    setDeleteTarget(null)
     startTransition(() => router.refresh())
   }
 
   return (
     <>
-      {/* Formulario (slide-over) */}
       {showForm && (
         <OperacionForm
-          onClose={() => setShowForm(false)}
+          onClose={() => { setShowForm(false); setEditing(undefined) }}
           onSuccess={handleSuccess}
+          editing={editing}
         />
+      )}
+
+      {/* Modal confirmación eliminar */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDeleteTarget(null)} />
+          <div className="relative bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-100 mb-1">¿Eliminar operación?</h3>
+                <p className="text-xs text-slate-400">
+                  Esta acción no se puede deshacer. Se eliminará permanentemente la operación de{' '}
+                  <span className="font-medium text-slate-200">{deleteTarget.client_id}</span>{' '}
+                  por <span className="font-mono text-slate-200">{formatUSD(deleteTarget.amount_usd)}</span>.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-3 mt-5">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 border border-slate-700 rounded-md hover:bg-slate-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {deleting && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── KPI Stats ── */}
@@ -115,7 +166,7 @@ export function OperacionesView({ initialOperations }: Props) {
 
           {/* Botón nueva operación */}
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => { setEditing(undefined); setShowForm(true) }}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
@@ -192,6 +243,8 @@ export function OperacionesView({ initialOperations }: Props) {
                         router.refresh()
                       })
                     }}
+                    onEdit={op => { setEditing(op); setShowForm(true) }}
+                    onDelete={op => setDeleteTarget(op)}
                   />
                 ))
               )}
@@ -220,9 +273,13 @@ export function OperacionesView({ initialOperations }: Props) {
 function OperacionRow({
   op,
   onStatusChange,
+  onEdit,
+  onDelete,
 }: {
   op: Operation
   onStatusChange: (id: string, status: OperationStatus) => void
+  onEdit: (op: Operation) => void
+  onDelete: (op: Operation) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -265,35 +322,58 @@ function OperacionRow({
         <OperacionStatusBadge status={op.status} />
       </td>
       <td className="py-3 px-4">
-        <div className="relative">
+        <div className="flex items-center gap-1.5">
+          {/* Cambio de estado */}
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen(v => !v)}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 rounded-md px-2 py-1 transition-colors"
+            >
+              Estado <ChevronDown className="w-3 h-3" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-7 z-10 bg-slate-800 border border-slate-700 rounded-md shadow-xl min-w-36 py-1">
+                {(['pendiente', 'en_proceso', 'completada', 'anulada'] as OperationStatus[]).map(s => (
+                  <button
+                    key={s}
+                    disabled={op.status === s}
+                    className={cn(
+                      'w-full text-left px-3 py-1.5 text-xs transition-colors',
+                      op.status === s
+                        ? 'text-slate-500 cursor-default'
+                        : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                    )}
+                    onClick={() => {
+                      setMenuOpen(false)
+                      if (op.status !== s) onStatusChange(op.id, s)
+                    }}
+                  >
+                    {{ pendiente: 'Pendiente', en_proceso: 'En Proceso', completada: 'Completada', anulada: 'Anulada' }[s]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Editar */}
           <button
-            onClick={() => setMenuOpen(v => !v)}
+            onClick={() => onEdit(op)}
+            title="Editar operación"
             className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 rounded-md px-2 py-1 transition-colors"
           >
-            Estado <ChevronDown className="w-3 h-3" />
+            <Pencil className="w-3 h-3" />
+            Editar
           </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-7 z-10 bg-slate-800 border border-slate-700 rounded-md shadow-xl min-w-36 py-1">
-              {(['pendiente', 'en_proceso', 'completada', 'anulada'] as OperationStatus[]).map(s => (
-                <button
-                  key={s}
-                  disabled={op.status === s}
-                  className={cn(
-                    'w-full text-left px-3 py-1.5 text-xs transition-colors',
-                    op.status === s
-                      ? 'text-slate-500 cursor-default'
-                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-                  )}
-                  onClick={() => {
-                    setMenuOpen(false)
-                    if (op.status !== s) onStatusChange(op.id, s)
-                  }}
-                >
-                  {{ pendiente: 'Pendiente', en_proceso: 'En Proceso', completada: 'Completada', anulada: 'Anulada' }[s]}
-                </button>
-              ))}
-            </div>
-          )}
+
+          {/* Eliminar */}
+          <button
+            onClick={() => onDelete(op)}
+            title="Eliminar operación"
+            className="flex items-center gap-1 text-xs text-red-500/70 hover:text-red-400 border border-red-500/20 hover:border-red-500/40 rounded-md px-2 py-1 transition-colors"
+          >
+            <Trash2 className="w-3 h-3" />
+            Eliminar
+          </button>
         </div>
       </td>
     </tr>

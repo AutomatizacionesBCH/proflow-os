@@ -30,6 +30,7 @@ export interface Database {
           profit_clp: number | null
           status: 'pendiente' | 'en_proceso' | 'completada' | 'anulada'
           notes: string | null
+          contract_url: string | null
           created_at: string
           updated_at: string
         }
@@ -53,6 +54,7 @@ export interface Database {
           profit_clp?: number | null
           status?: 'pendiente' | 'en_proceso' | 'completada' | 'anulada'
           notes?: string | null
+          contract_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -76,6 +78,7 @@ export interface Database {
           profit_clp?: number | null
           status?: 'pendiente' | 'en_proceso' | 'completada' | 'anulada'
           notes?: string | null
+          contract_url?: string | null
           updated_at?: string
         }
         Relationships: []

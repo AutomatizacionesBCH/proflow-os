@@ -7,6 +7,7 @@ import { cn, formatUSD, formatCLP } from '@/lib/utils'
 import type { Cliente, ClientTag, Company, Operation, Processor } from '@/types'
 import { ClienteTagBadge } from './ClienteTagBadge'
 import { ClienteForm } from './ClienteForm'
+import { ClienteDocumentos } from './ClienteDocumentos'
 import { OperacionStatusBadge } from '@/components/operaciones/OperacionStatusBadge'
 
 type Props = {
@@ -152,6 +153,9 @@ export function ClienteDetalle({ cliente, operations, companies, processors }: P
               </div>
             </div>
           )}
+
+          {/* Documentos del cliente */}
+          <ClienteDocumentos clienteId={cliente.id} />
 
           {/* Historial de operaciones */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">

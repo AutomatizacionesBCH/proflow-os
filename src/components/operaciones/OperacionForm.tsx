@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect, useTransition } from 'react'
-import { X, Sparkles, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react'
+import { X, Sparkles, TrendingUp, TrendingDown, AlertCircle, FileText, Download, ChevronDown, ChevronUp } from 'lucide-react'
 import { cn, calcOperation, suggestPayoutPct, formatCLP, formatUSD, formatPct } from '@/lib/utils'
 import type { OperationStatus } from '@/types'
 import { createOperation, updateOperation, type CreateOperationInput } from '@/app/operaciones/actions'
+import { generateContract } from '@/app/operaciones/contractActions'
+import { useRouter } from 'next/navigation'
 import type { Operation } from '@/types'
 
 // ─── Estilos de inputs reutilizables ───────────────────────────────────────
@@ -51,6 +53,14 @@ type FormValues = {
   notes: string
 }
 
+type ContractFields = {
+  cliente_nombre: string
+  cliente_rut: string
+  ciudad: string
+  direccion: string
+  tarjeta_credito: string
+}
+
 const INITIAL: FormValues = {
   client_id: '',
   company_id: '',
@@ -69,6 +79,14 @@ const INITIAL: FormValues = {
   notes: '',
 }
 
+const INITIAL_CONTRACT: ContractFields = {
+  cliente_nombre: '',
+  cliente_rut: '',
+  ciudad: '',
+  direccion: '',
+  tarjeta_credito: '',
+}
+
 // ─── Props ─────────────────────────────────────────────────────────────────
 type Props = {
   onClose: () => void
@@ -78,6 +96,9 @@ type Props = {
 
 // ─── Componente ────────────────────────────────────────────────────────────
 export function OperacionForm({ onClose, onSuccess, editing }: Props) {
+  const router = useRouter()
+  const [, startRefresh] = useTransition()
+
   const [form, setForm] = useState<FormValues>(() =>
     editing
       ? {
@@ -99,13 +120,20 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
         }
       : INITIAL
   )
-  const [payoutManual, setPayoutManual] = useState(!!editing)
-  const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [contract, setContract]           = useState<ContractFields>(INITIAL_CONTRACT)
+  const [contractOpen, setContractOpen]   = useState(false)
+  const [payoutManual, setPayoutManual]   = useState(!!editing)
+  const [error, setError]                 = useState<string | null>(null)
+  const [isPending, startTransition]      = useTransition()
+
+  // After successful save
+  const [savedOpId,    setSavedOpId]      = useState<string | null>(editing?.id ?? null)
+  const [savedOk,      setSavedOk]        = useState(false)
+  const [contractBusy, setContractBusy]   = useState(false)
+  const [contractDone, setContractDone]   = useState<{ docxUrl: string; pdfUrl: string } | null>(null)
 
   const n = (v: string) => parseFloat(v) || 0
 
-  // Auto-sugerir payout_pct cuando cambia amount_usd
   useEffect(() => {
     if (payoutManual) return
     const amt = n(form.amount_usd)
@@ -131,6 +159,12 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       setForm(f => ({ ...f, [key]: e.target.value }))
       if (key === 'client_payout_pct') setPayoutManual(true)
+    }
+  }
+
+  function setC(key: keyof ContractFields) {
+    return (e: React.ChangeEvent<HTMLInputElement>) => {
+      setContract(f => ({ ...f, [key]: e.target.value }))
     }
   }
 
@@ -165,21 +199,43 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
       const result = editing
         ? await updateOperation(editing.id, payload)
         : await createOperation(payload)
+
       if (result.success) {
-        onSuccess()
+        setSavedOpId(result.id)
+        setSavedOk(true)
+        setContractOpen(true)
+        startRefresh(() => router.refresh())
       } else {
         setError(result.error)
       }
     })
   }
 
+  async function handleGenerateContract() {
+    if (!savedOpId) return
+    if (!contract.cliente_nombre.trim() || !contract.cliente_rut.trim()) {
+      setError('Nombre y RUT del cliente son requeridos para generar el contrato.')
+      return
+    }
+    setError(null)
+    setContractBusy(true)
+    const result = await generateContract({ operation_id: savedOpId, ...contract })
+    setContractBusy(false)
+    if (result.success) {
+      setContractDone({ docxUrl: result.docxUrl, pdfUrl: result.pdfUrl })
+    } else {
+      setError(result.error)
+    }
+  }
+
+  function handleClose() {
+    if (savedOk) onSuccess()
+    else onClose()
+  }
+
   return (
-    // Overlay
     <div className="fixed inset-0 z-50 flex">
-      <div
-        className="flex-1 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="flex-1 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
 
       {/* Panel principal */}
       <div className="w-full max-w-5xl flex flex-col bg-slate-950 border-l border-slate-800 shadow-2xl h-full overflow-hidden">
@@ -189,10 +245,7 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
             <h2 className="text-base font-semibold text-slate-100">{editing ? 'Editar Operación' : 'Nueva Operación'}</h2>
             <p className="text-xs text-slate-500 mt-0.5">Ingresa los datos y revisa la calculadora antes de guardar</p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
-          >
+          <button onClick={handleClose} className="p-1.5 rounded-md text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -200,20 +253,24 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
         {/* Body: form + calculadora */}
         <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
 
-          {/* ── FORMULARIO (izquierda, scrollable) ── */}
-          <form
-            id="op-form"
-            onSubmit={handleSubmit}
-            className="flex-1 overflow-y-auto px-6 py-6 space-y-7"
-          >
+          {/* ── FORMULARIO ── */}
+          <form id="op-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-6 space-y-7">
+
+            {savedOk && (
+              <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3">
+                <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+                <p className="text-sm text-green-400 font-medium">Operación guardada correctamente.</p>
+              </div>
+            )}
+
             {/* ── Identificación ── */}
             <Section title="Identificación">
               <div className="grid grid-cols-2 gap-4">
                 <Field title="Fecha de operación">
-                  <input type="date" className={input} value={form.operation_date} onChange={set('operation_date')} required />
+                  <input type="date" className={input} value={form.operation_date} onChange={set('operation_date')} required disabled={savedOk} />
                 </Field>
                 <Field title="Estado">
-                  <select className={cn(input, 'cursor-pointer')} value={form.status} onChange={set('status')}>
+                  <select className={cn(input, 'cursor-pointer')} value={form.status} onChange={set('status')} disabled={savedOk}>
                     <option value="pendiente">Pendiente</option>
                     <option value="en_proceso">En Proceso</option>
                     <option value="completada">Completada</option>
@@ -223,13 +280,13 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <Field title="ID Cliente" hint="Referencia al cliente">
-                  <input type="text" className={input} placeholder="CLI-001" value={form.client_id} onChange={set('client_id')} required />
+                  <input type="text" className={input} placeholder="CLI-001" value={form.client_id} onChange={set('client_id')} required disabled={savedOk} />
                 </Field>
                 <Field title="ID Empresa" hint="Opcional">
-                  <input type="text" className={input} placeholder="EMP-001" value={form.company_id} onChange={set('company_id')} />
+                  <input type="text" className={input} placeholder="EMP-001" value={form.company_id} onChange={set('company_id')} disabled={savedOk} />
                 </Field>
                 <Field title="ID Procesador" hint="Opcional">
-                  <input type="text" className={input} placeholder="PROC-001" value={form.processor_id} onChange={set('processor_id')} />
+                  <input type="text" className={input} placeholder="PROC-001" value={form.processor_id} onChange={set('processor_id')} disabled={savedOk} />
                 </Field>
               </div>
             </Section>
@@ -238,58 +295,26 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
             <Section title="Monto y Tipo de Cambio">
               <div className="grid grid-cols-2 gap-4">
                 <Field title="Monto USD" hint="Importe de la operación en dólares">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    className={input}
-                    placeholder="10000.00"
-                    value={form.amount_usd}
-                    onChange={set('amount_usd')}
-                    required
-                  />
+                  <input type="number" step="0.01" min="0" className={input} placeholder="10000.00" value={form.amount_usd} onChange={set('amount_usd')} required disabled={savedOk} />
                 </Field>
                 <Field title="Tipo de Cambio (USD → CLP)" hint="Tasa usada para convertir">
-                  <input
-                    type="number"
-                    step="0.0001"
-                    min="0"
-                    className={input}
-                    placeholder="930.0000"
-                    value={form.fx_rate_used}
-                    onChange={set('fx_rate_used')}
-                    required
-                  />
+                  <input type="number" step="0.0001" min="0" className={input} placeholder="930.0000" value={form.fx_rate_used} onChange={set('fx_rate_used')} required disabled={savedOk} />
                 </Field>
               </div>
               <Field title="Fuente del Tipo de Cambio" hint="Ej: Bloomberg, Valor Nominal, SII">
-                <input type="text" className={input} placeholder="Bloomberg" value={form.fx_source} onChange={set('fx_source')} />
+                <input type="text" className={input} placeholder="Bloomberg" value={form.fx_source} onChange={set('fx_source')} disabled={savedOk} />
               </Field>
             </Section>
 
             {/* ── Pago al Cliente ── */}
             <Section title="Pago al Cliente">
               <div className="grid grid-cols-2 gap-4 items-end">
-                <Field
-                  title="% Pago al Cliente"
-                  hint={payoutManual ? 'Valor editado manualmente' : 'Sugerido automáticamente según monto'}
-                >
+                <Field title="% Pago al Cliente" hint={payoutManual ? 'Valor editado manualmente' : 'Sugerido automáticamente según monto'}>
                   <div className="relative">
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      className={cn(input, 'pr-16')}
-                      placeholder="79.00"
-                      value={form.client_payout_pct}
-                      onChange={set('client_payout_pct')}
-                      required
-                    />
+                    <input type="number" step="0.01" min="0" max="100" className={cn(input, 'pr-16')} placeholder="79.00" value={form.client_payout_pct} onChange={set('client_payout_pct')} required disabled={savedOk} />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500 font-mono">%</span>
                   </div>
                 </Field>
-
                 <div className="pb-0.5">
                   {!payoutManual && n(form.amount_usd) > 0 && (
                     <div className="flex items-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 border border-blue-500/20 rounded-md px-3 py-2">
@@ -297,16 +322,9 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
                       <span>Sugerido: <strong>{suggestPayoutPct(n(form.amount_usd))}%</strong> para ${n(form.amount_usd).toLocaleString()}</span>
                     </div>
                   )}
-                  {payoutManual && (
-                    <button
-                      type="button"
-                      className="text-xs text-slate-500 hover:text-blue-400 underline transition-colors"
-                      onClick={() => {
-                        setPayoutManual(false)
-                        const suggested = suggestPayoutPct(n(form.amount_usd))
-                        setForm(f => ({ ...f, client_payout_pct: String(suggested) }))
-                      }}
-                    >
+                  {payoutManual && !savedOk && (
+                    <button type="button" className="text-xs text-slate-500 hover:text-blue-400 underline transition-colors"
+                      onClick={() => { setPayoutManual(false); setForm(f => ({ ...f, client_payout_pct: String(suggestPayoutPct(n(f.amount_usd))) })) }}>
                       Restablecer sugerencia automática
                     </button>
                   )}
@@ -319,31 +337,31 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
               <div className="grid grid-cols-3 gap-4">
                 <Field title="Fee Procesador (%)" hint="Sobre el monto bruto CLP">
                   <div className="relative">
-                    <input type="number" step="0.0001" min="0" className={cn(input, 'pr-8')} placeholder="2.5000" value={form.processor_fee_pct} onChange={set('processor_fee_pct')} />
+                    <input type="number" step="0.0001" min="0" className={cn(input, 'pr-8')} placeholder="2.5000" value={form.processor_fee_pct} onChange={set('processor_fee_pct')} disabled={savedOk} />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
                   </div>
                 </Field>
                 <Field title="Fee Préstamo (%)" hint="Sobre el monto bruto CLP">
                   <div className="relative">
-                    <input type="number" step="0.0001" min="0" className={cn(input, 'pr-8')} placeholder="0.0000" value={form.loan_fee_pct} onChange={set('loan_fee_pct')} />
+                    <input type="number" step="0.0001" min="0" className={cn(input, 'pr-8')} placeholder="0.0000" value={form.loan_fee_pct} onChange={set('loan_fee_pct')} disabled={savedOk} />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
                   </div>
                 </Field>
                 <Field title="Fee Payout (%)" hint="Sobre el monto bruto CLP">
                   <div className="relative">
-                    <input type="number" step="0.0001" min="0" className={cn(input, 'pr-8')} placeholder="0.0000" value={form.payout_fee_pct} onChange={set('payout_fee_pct')} />
+                    <input type="number" step="0.0001" min="0" className={cn(input, 'pr-8')} placeholder="0.0000" value={form.payout_fee_pct} onChange={set('payout_fee_pct')} disabled={savedOk} />
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">%</span>
                   </div>
                 </Field>
                 <Field title="Wire Fee (USD)" hint="Cargo fijo en dólares">
                   <div className="relative">
-                    <input type="number" step="0.01" min="0" className={cn(input, 'pl-7')} placeholder="0.00" value={form.wire_fee_usd} onChange={set('wire_fee_usd')} />
+                    <input type="number" step="0.01" min="0" className={cn(input, 'pl-7')} placeholder="0.00" value={form.wire_fee_usd} onChange={set('wire_fee_usd')} disabled={savedOk} />
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
                   </div>
                 </Field>
                 <Field title="Receive Fee (USD)" hint="Cargo fijo en dólares">
                   <div className="relative">
-                    <input type="number" step="0.01" min="0" className={cn(input, 'pl-7')} placeholder="0.00" value={form.receive_fee_usd} onChange={set('receive_fee_usd')} />
+                    <input type="number" step="0.01" min="0" className={cn(input, 'pl-7')} placeholder="0.00" value={form.receive_fee_usd} onChange={set('receive_fee_usd')} disabled={savedOk} />
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">$</span>
                   </div>
                 </Field>
@@ -352,23 +370,71 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
 
             {/* ── Notas ── */}
             <Section title="Notas">
-              <textarea
-                rows={3}
-                className={cn(input, 'resize-none')}
-                placeholder="Observaciones internas sobre esta operación..."
-                value={form.notes}
-                onChange={set('notes')}
-              />
+              <textarea rows={3} className={cn(input, 'resize-none')} placeholder="Observaciones internas..." value={form.notes} onChange={set('notes')} disabled={savedOk} />
             </Section>
+
+            {/* ── Datos para el contrato ── */}
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={() => setContractOpen(v => !v)}
+                className="flex items-center justify-between w-full text-xs font-semibold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2 hover:text-slate-400 transition-colors"
+              >
+                <span className="flex items-center gap-2">
+                  <FileText className="w-3.5 h-3.5" />
+                  Datos para el contrato {savedOk && <span className="text-green-400 normal-case font-normal">(requerido para generar)</span>}
+                </span>
+                {contractOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+
+              {contractOpen && (
+                <div className="space-y-4 pl-1">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field title="Nombre completo del cliente">
+                      <input type="text" className={input} placeholder="Juan Pérez González" value={contract.cliente_nombre} onChange={setC('cliente_nombre')} />
+                    </Field>
+                    <Field title="RUT del cliente">
+                      <input type="text" className={input} placeholder="12.345.678-9" value={contract.cliente_rut} onChange={setC('cliente_rut')} />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field title="Ciudad">
+                      <input type="text" className={input} placeholder="Santiago" value={contract.ciudad} onChange={setC('ciudad')} />
+                    </Field>
+                    <Field title="Dirección">
+                      <input type="text" className={input} placeholder="Av. Providencia 123" value={contract.direccion} onChange={setC('direccion')} />
+                    </Field>
+                  </div>
+                  <Field title="Tarjeta de crédito" hint="No se guarda en la base de datos — solo aparece en el contrato">
+                    <input type="text" className={input} placeholder="4111 1111 1111 1111" value={contract.tarjeta_credito} onChange={setC('tarjeta_credito')} autoComplete="off" />
+                  </Field>
+
+                  {contractDone && (
+                    <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 space-y-2">
+                      <p className="text-xs font-medium text-green-400">Contrato generado y guardado en Supabase Storage.</p>
+                      <div className="flex items-center gap-3">
+                        <a href={contractDone.docxUrl} target="_blank" rel="noreferrer" download
+                          className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 underline">
+                          <Download className="w-3 h-3" /> Descargar Word
+                        </a>
+                        <a href={contractDone.pdfUrl} target="_blank" rel="noreferrer" download
+                          className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 underline">
+                          <Download className="w-3 h-3" /> Descargar PDF
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </form>
 
-          {/* ── CALCULADORA (derecha en desktop, abajo en móvil) ── */}
+          {/* ── CALCULADORA ── */}
           <div className="sm:w-72 flex-shrink-0 border-t sm:border-t-0 sm:border-l border-slate-800 bg-slate-900/50 flex flex-col max-h-64 sm:max-h-none">
             <div className="px-5 pt-5 pb-3 border-b border-slate-800">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest">Calculadora</p>
               <p className="text-xs text-slate-600 mt-0.5">Actualiza en tiempo real</p>
             </div>
-
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {!hasData ? (
                 <div className="text-center py-8">
@@ -379,69 +445,27 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
                 </div>
               ) : (
                 <>
-                  {/* Monto bruto */}
                   <div className="bg-slate-800/60 rounded-lg p-3">
                     <p className="text-xs text-slate-500 mb-1">Monto Bruto CLP</p>
                     <p className="text-lg font-mono font-bold text-slate-100">{formatCLP(calc.gross_clp)}</p>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      {formatUSD(n(form.amount_usd))} × {n(form.fx_rate_used).toLocaleString('es-CL')}
-                    </p>
+                    <p className="text-xs text-slate-600 mt-0.5">{formatUSD(n(form.amount_usd))} × {n(form.fx_rate_used).toLocaleString('es-CL')}</p>
                   </div>
-
-                  {/* Desglose de egresos */}
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Egresos</p>
-
-                    <CalcLine
-                      label={`Pago cliente (${formatPct(n(form.client_payout_pct), 1)})`}
-                      value={calc.amount_clp_paid}
-                      color="text-red-400"
-                    />
-                    {calc.fee_processor > 0 && (
-                      <CalcLine label={`Fee procesador (${formatPct(n(form.processor_fee_pct))})`} value={calc.fee_processor} color="text-slate-400" />
-                    )}
-                    {calc.fee_loan > 0 && (
-                      <CalcLine label={`Fee préstamo (${formatPct(n(form.loan_fee_pct))})`} value={calc.fee_loan} color="text-slate-400" />
-                    )}
-                    {calc.fee_payout > 0 && (
-                      <CalcLine label={`Fee payout (${formatPct(n(form.payout_fee_pct))})`} value={calc.fee_payout} color="text-slate-400" />
-                    )}
-                    {calc.fee_wire > 0 && (
-                      <CalcLine label={`Wire (${formatUSD(n(form.wire_fee_usd))})`} value={calc.fee_wire} color="text-slate-400" />
-                    )}
-                    {calc.fee_receive > 0 && (
-                      <CalcLine label={`Recepción (${formatUSD(n(form.receive_fee_usd))})`} value={calc.fee_receive} color="text-slate-400" />
-                    )}
+                    <CalcLine label={`Pago cliente (${formatPct(n(form.client_payout_pct), 1)})`} value={calc.amount_clp_paid} color="text-red-400" />
+                    {calc.fee_processor > 0 && <CalcLine label={`Fee procesador (${formatPct(n(form.processor_fee_pct))})`} value={calc.fee_processor} color="text-slate-400" />}
+                    {calc.fee_loan > 0     && <CalcLine label={`Fee préstamo (${formatPct(n(form.loan_fee_pct))})`}      value={calc.fee_loan}      color="text-slate-400" />}
+                    {calc.fee_payout > 0   && <CalcLine label={`Fee payout (${formatPct(n(form.payout_fee_pct))})`}      value={calc.fee_payout}    color="text-slate-400" />}
+                    {calc.fee_wire > 0     && <CalcLine label={`Wire (${formatUSD(n(form.wire_fee_usd))})`}              value={calc.fee_wire}      color="text-slate-400" />}
+                    {calc.fee_receive > 0  && <CalcLine label={`Recepción (${formatUSD(n(form.receive_fee_usd))})`}      value={calc.fee_receive}   color="text-slate-400" />}
                   </div>
-
-                  {/* Utilidad */}
-                  <div className={cn(
-                    'rounded-xl p-4 border',
-                    calc.profit_clp >= 0
-                      ? 'bg-green-500/8 border-green-500/20'
-                      : 'bg-red-500/8 border-red-500/20'
-                  )}>
+                  <div className={cn('rounded-xl p-4 border', calc.profit_clp >= 0 ? 'bg-green-500/8 border-green-500/20' : 'bg-red-500/8 border-red-500/20')}>
                     <div className="flex items-center gap-1.5 mb-2">
-                      {calc.profit_clp >= 0
-                        ? <TrendingUp className="w-3.5 h-3.5 text-green-400" />
-                        : <TrendingDown className="w-3.5 h-3.5 text-red-400" />
-                      }
-                      <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">
-                        Utilidad Neta
-                      </span>
+                      {calc.profit_clp >= 0 ? <TrendingUp className="w-3.5 h-3.5 text-green-400" /> : <TrendingDown className="w-3.5 h-3.5 text-red-400" />}
+                      <span className="text-xs font-semibold text-slate-300 uppercase tracking-wide">Utilidad Neta</span>
                     </div>
-                    <p className={cn(
-                      'text-2xl font-mono font-bold',
-                      calc.profit_clp >= 0 ? 'text-green-400' : 'text-red-400'
-                    )}>
-                      {formatCLP(calc.profit_clp)}
-                    </p>
-                    <p className={cn(
-                      'text-sm font-mono mt-1',
-                      calc.profit_clp >= 0 ? 'text-green-500' : 'text-red-500'
-                    )}>
-                      {formatPct(calc.profit_margin)} del bruto
-                    </p>
+                    <p className={cn('text-2xl font-mono font-bold', calc.profit_clp >= 0 ? 'text-green-400' : 'text-red-400')}>{formatCLP(calc.profit_clp)}</p>
+                    <p className={cn('text-sm font-mono mt-1', calc.profit_clp >= 0 ? 'text-green-500' : 'text-red-500')}>{formatPct(calc.profit_margin)} del bruto</p>
                   </div>
                 </>
               )}
@@ -460,28 +484,38 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
           {!error && <div />}
 
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 border border-slate-700 rounded-md hover:bg-slate-800 transition-colors"
-            >
-              Cancelar
+            <button type="button" onClick={handleClose}
+              className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 border border-slate-700 rounded-md hover:bg-slate-800 transition-colors">
+              {savedOk ? 'Cerrar' : 'Cancelar'}
             </button>
-            <button
-              type="submit"
-              form="op-form"
-              disabled={isPending}
-              className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {isPending ? (
-                <>
-                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                editing ? 'Guardar Cambios' : 'Crear Operación'
-              )}
-            </button>
+
+            {/* Generar Contrato — visible cuando hay savedOpId */}
+            {savedOpId && !contractDone && (
+              <button
+                type="button"
+                onClick={handleGenerateContract}
+                disabled={contractBusy}
+                className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {contractBusy ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Generando...</>
+                ) : (
+                  <><FileText className="w-3.5 h-3.5" />Generar Contrato</>
+                )}
+              </button>
+            )}
+
+            {/* Guardar — oculto después de guardar exitosamente */}
+            {!savedOk && (
+              <button type="submit" form="op-form" disabled={isPending}
+                className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                {isPending ? (
+                  <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando...</>
+                ) : (
+                  editing ? 'Guardar Cambios' : 'Crear Operación'
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -489,7 +523,7 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
   )
 }
 
-// ─── Helper: línea de cálculo ───────────────────────────────────────────────
+// ─── Helper ──────────────────────────────────────────────────────────────────
 function CalcLine({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <div className="flex items-center justify-between text-xs">

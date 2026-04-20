@@ -2,11 +2,12 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Filter, Search, ChevronDown, Pencil, Trash2, AlertTriangle } from 'lucide-react'
+import { Plus, Filter, Search, ChevronDown, Pencil, Trash2, AlertTriangle, Paperclip } from 'lucide-react'
 import { cn, formatCLP, formatUSD, formatPct } from '@/lib/utils'
 import type { Operation, OperationStatus } from '@/types'
 import { OperacionStatusBadge } from './OperacionStatusBadge'
 import { OperacionForm } from './OperacionForm'
+import { OperacionDocumentos } from './OperacionDocumentos'
 import { updateOperationStatus, deleteOperation } from '@/app/operaciones/actions'
 import { KpiBox } from '@/components/ui/KpiBox'
 
@@ -30,6 +31,7 @@ export function OperacionesView({ initialOperations }: Props) {
   const [editing, setEditing]     = useState<Operation | undefined>(undefined)
   const [deleteTarget, setDeleteTarget] = useState<Operation | null>(null)
   const [deleting, setDeleting]   = useState(false)
+  const [docsTarget, setDocsTarget] = useState<string | null>(null)
   const [search, setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState<OperationStatus | 'all'>('all')
   const [dateFrom, setDateFrom] = useState('')
@@ -84,6 +86,11 @@ export function OperacionesView({ initialOperations }: Props) {
           onSuccess={handleSuccess}
           editing={editing}
         />
+      )}
+
+      {/* Modal documentos de operación */}
+      {docsTarget && (
+        <OperacionDocumentos operacionId={docsTarget} onClose={() => setDocsTarget(null)} />
       )}
 
       {/* Modal confirmación eliminar */}
@@ -247,6 +254,7 @@ export function OperacionesView({ initialOperations }: Props) {
                     }}
                     onEdit={op => { setEditing(op); setShowForm(true) }}
                     onDelete={op => setDeleteTarget(op)}
+                    onDocs={id => setDocsTarget(id)}
                   />
                 ))
               )}
@@ -277,11 +285,13 @@ function OperacionRow({
   onStatusChange,
   onEdit,
   onDelete,
+  onDocs,
 }: {
   op: Operation
   onStatusChange: (id: string, status: OperationStatus) => void
   onEdit: (op: Operation) => void
   onDelete: (op: Operation) => void
+  onDocs: (id: string) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
@@ -365,6 +375,16 @@ function OperacionRow({
           >
             <Pencil className="w-3 h-3" />
             Editar
+          </button>
+
+          {/* Documentos */}
+          <button
+            onClick={() => onDocs(op.id)}
+            title="Documentos de la operación"
+            className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 rounded-md px-2 py-1 transition-colors"
+          >
+            <Paperclip className="w-3 h-3" />
+            Docs
           </button>
 
           {/* Eliminar */}

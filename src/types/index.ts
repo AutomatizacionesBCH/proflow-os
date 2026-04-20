@@ -30,6 +30,7 @@ export type Operation = {
   profit_clp: number | null
   status: OperationStatus
   notes: string | null
+  contract_url: string | null
   created_at: string
   updated_at: string
 }

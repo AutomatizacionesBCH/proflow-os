@@ -6,6 +6,7 @@ import { cn, calcOperation, suggestPayoutPct, formatCLP, formatUSD, formatPct } 
 import type { OperationStatus } from '@/types'
 import { createOperation, updateOperation, type CreateOperationInput } from '@/app/operaciones/actions'
 import { generateContract } from '@/app/operaciones/contractActions'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { Operation } from '@/types'
 
@@ -219,13 +220,77 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
     }
     setError(null)
     setContractBusy(true)
-    const result = await generateContract({ operation_id: savedOpId, ...contract })
-    setContractBusy(false)
-    if (result.success) {
-      setContractDone({ docxUrl: result.docxUrl, pdfUrl: result.pdfUrl })
-    } else {
-      setError(result.error)
+
+    try {
+      // 1. Servidor genera DOCX y lo sube a Storage
+      const result = await generateContract({ operation_id: savedOpId, ...contract })
+      if (!result.success) { setError(result.error); setContractBusy(false); return }
+
+      // 2. Cliente genera PDF con jsPDF (sin dependencias de fuentes del servidor)
+      const { default: jsPDF } = await import('jspdf')
+      const now      = new Date()
+      const fechaChi = now.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      const mm       = String(now.getMonth() + 1).padStart(2, '0')
+      const dd       = String(now.getDate()).padStart(2, '0')
+      const fechaUsa = `${mm}/${dd}/${now.getFullYear()}`
+
+      const doc = new jsPDF()
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('CONTRATO DE CAMBIO DE DIVISAS', 105, 20, { align: 'center' })
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(80)
+      doc.text(`Fecha (CL): ${fechaChi}     Fecha (USA): ${fechaUsa}`, 105, 28, { align: 'center' })
+
+      doc.setTextColor(0)
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.text('DATOS DEL CLIENTE', 15, 45)
+      doc.setDrawColor(200)
+      doc.line(15, 47, 195, 47)
+
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Nombre completo:  ${contract.cliente_nombre}`, 15, 55)
+      doc.text(`RUT:              ${contract.cliente_rut}`, 15, 62)
+      doc.text(`Ciudad:           ${contract.ciudad}`, 15, 69)
+      doc.text(`Dirección:        ${contract.direccion}`, 15, 76)
+
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.text('DATOS DE LA OPERACIÓN', 15, 92)
+      doc.line(15, 94, 195, 94)
+
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      const montoStr = parseFloat(form.amount_usd).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      doc.text(`Monto USD:        $${montoStr}`, 15, 102)
+      doc.text(`Tarjeta crédito:  ${contract.tarjeta_credito}`, 15, 109)
+
+      doc.text('_______________________________', 15, 140)
+      doc.text('Firma del cliente', 15, 147)
+
+      const pdfBlob = doc.output('blob')
+
+      // 3. Cliente sube PDF a Supabase Storage
+      const supabase   = createClient()
+      const pdfPath    = `${result.folder}/${result.fileName}.pdf`
+      const { error: pdfUpErr } = await supabase.storage
+        .from('contratos')
+        .upload(pdfPath, pdfBlob, { contentType: 'application/pdf', upsert: true })
+
+      if (pdfUpErr) { setError(`Error subiendo PDF: ${pdfUpErr.message}`); setContractBusy(false); return }
+
+      const { data: pdfData } = supabase.storage.from('contratos').getPublicUrl(pdfPath)
+
+      setContractDone({ docxUrl: result.docxUrl, pdfUrl: pdfData.publicUrl })
+    } catch (e: unknown) {
+      setError(`Error inesperado: ${e instanceof Error ? e.message : String(e)}`)
     }
+
+    setContractBusy(false)
   }
 
   function handleClose() {

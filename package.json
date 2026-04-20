@@ -14,6 +14,7 @@
     "@types/pdfkit": "^0.17.6",
     "clsx": "^2.1.1",
     "docxtemplater": "^3.68.5",
+    "jspdf": "^4.2.1",
     "lucide-react": "^1.8.0",
     "next": "16.2.4",
     "pdfkit": "^0.18.0",

@@ -15,14 +15,13 @@ export type ContractInput = {
 }
 
 export type ContractResult =
-  | { success: true; docxUrl: string; pdfUrl: string }
+  | { success: true; docxUrl: string; folder: string; fileName: string }
   | { success: false; error: string }
 
 export async function generateContract(input: ContractInput): Promise<ContractResult> {
   try {
     const supabase = await createClient()
 
-    // Fetch operation data
     const { data: op, error: opError } = await supabase
       .from('operations')
       .select('amount_usd, operation_date')
@@ -33,11 +32,10 @@ export async function generateContract(input: ContractInput): Promise<ContractRe
       return { success: false, error: `Operación no encontrada: ${opError?.message ?? 'sin datos'}` }
     }
 
-    // Format dates
-    const now    = new Date()
+    const now      = new Date()
     const fechaChi = now.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    const mm     = String(now.getMonth() + 1).padStart(2, '0')
-    const dd     = String(now.getDate()).padStart(2, '0')
+    const mm       = String(now.getMonth() + 1).padStart(2, '0')
+    const dd       = String(now.getDate()).padStart(2, '0')
     const fechaUsa = `${mm}/${dd}/${now.getFullYear()}`
     const montoStr = op.amount_usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -58,8 +56,7 @@ export async function generateContract(input: ContractInput): Promise<ContractRe
         delimiters:    { start: '[', end: ']' },
         paragraphLoop: true,
         linebreaks:    true,
-        // Devuelve string vacío para cualquier marcador no definido en vez de lanzar error
-        nullGetter() { return '' },
+        nullGetter()  { return '' },
       })
 
       doc.render({
@@ -74,61 +71,11 @@ export async function generateContract(input: ContractInput): Promise<ContractRe
       })
 
       docxBuffer = doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' }) as Buffer
-    } catch (docxErr: unknown) {
-      const msg = docxErr instanceof Error ? docxErr.message : String(docxErr)
-      return { success: false, error: `Error procesando template Word: ${msg}` }
+    } catch (e: unknown) {
+      return { success: false, error: `Error procesando template Word: ${e instanceof Error ? e.message : String(e)}` }
     }
 
-    // ── Generate PDF ─────────────────────────────────────────────────────────
-    let pdfBuffer: Buffer
-    try {
-      const PDFDocument = (await import('pdfkit')).default
-
-      pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
-        // Timeout de seguridad: si pdfkit no responde en 10s, rechazar
-        const timeout = setTimeout(() => reject(new Error('Timeout generando PDF')), 10_000)
-
-        const doc    = new PDFDocument({ margin: 60, size: 'LETTER', bufferPages: true })
-        const chunks: Buffer[] = []
-        doc.on('data',  (c: Buffer) => chunks.push(c))
-        doc.on('end',   () => { clearTimeout(timeout); resolve(Buffer.concat(chunks)) })
-        doc.on('error', (e: Error) => { clearTimeout(timeout); reject(e) })
-
-        doc.fontSize(14).font('Helvetica-Bold')
-          .text('CONTRATO DE CAMBIO DE DIVISAS', { align: 'center' })
-        doc.moveDown(0.5)
-        doc.fontSize(9).font('Helvetica').fillColor('#444444')
-          .text(`Fecha (CL): ${fechaChi}     Fecha (USA): ${fechaUsa}`, { align: 'center' })
-        doc.moveDown(1.5)
-
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000').text('DATOS DEL CLIENTE')
-        doc.moveDown(0.3)
-        doc.fontSize(9).font('Helvetica')
-        doc.text(`Nombre completo:  ${input.cliente_nombre}`)
-        doc.text(`RUT:              ${input.cliente_rut}`)
-        doc.text(`Ciudad:           ${input.ciudad}`)
-        doc.text(`Dirección:        ${input.direccion}`)
-        doc.moveDown(1.2)
-
-        doc.fontSize(10).font('Helvetica-Bold').text('DATOS DE LA OPERACIÓN')
-        doc.moveDown(0.3)
-        doc.fontSize(9).font('Helvetica')
-        doc.text(`Monto USD:        $${montoStr}`)
-        doc.text(`Tarjeta crédito:  ${input.tarjeta_credito}`)
-        doc.moveDown(2.5)
-
-        doc.fontSize(9).font('Helvetica').fillColor('#000000')
-        doc.text('_______________________________')
-        doc.text('Firma del cliente')
-
-        doc.end()
-      })
-    } catch (pdfErr: unknown) {
-      const msg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr)
-      return { success: false, error: `Error generando PDF: ${msg}` }
-    }
-
-    // ── Upload to Supabase Storage ───────────────────────────────────────────
+    // ── Upload DOCX ──────────────────────────────────────────────────────────
     const safeName = input.cliente_nombre.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40)
     const dateStr  = now.toISOString().split('T')[0]
     const fileName = `contrato_${safeName}_${dateStr}`
@@ -145,32 +92,19 @@ export async function generateContract(input: ContractInput): Promise<ContractRe
       return { success: false, error: `Error subiendo Word (¿se corrió la migración SQL?): ${docxUpErr.message}` }
     }
 
-    const { error: pdfUpErr } = await supabase.storage
-      .from('contratos')
-      .upload(`${folder}/${fileName}.pdf`, pdfBuffer, {
-        contentType: 'application/pdf',
-        upsert: true,
-      })
-
-    if (pdfUpErr) {
-      return { success: false, error: `Error subiendo PDF: ${pdfUpErr.message}` }
-    }
-
-    // Public URLs
     const { data: docxData } = supabase.storage.from('contratos').getPublicUrl(`${folder}/${fileName}.docx`)
-    const { data: pdfData }  = supabase.storage.from('contratos').getPublicUrl(`${folder}/${fileName}.pdf`)
 
-    // Save contract URL on operation
     await supabase
       .from('operations')
       .update({ contract_url: docxData.publicUrl })
       .eq('id', input.operation_id)
 
     revalidatePath('/operaciones')
-    return { success: true, docxUrl: docxData.publicUrl, pdfUrl: pdfData.publicUrl }
+
+    // El PDF lo genera el cliente (browser) con jsPDF para evitar dependencias de fuentes en el servidor
+    return { success: true, docxUrl: docxData.publicUrl, folder, fileName }
 
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err)
-    return { success: false, error: `Error inesperado: ${msg}` }
+    return { success: false, error: `Error inesperado: ${err instanceof Error ? err.message : String(err)}` }
   }
 }

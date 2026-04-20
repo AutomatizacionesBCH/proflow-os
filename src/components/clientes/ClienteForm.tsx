@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatRutForStorage } from '@/lib/utils'
 import type { Cliente, ClientTag, Company, Processor } from '@/types'
 import { createCliente, updateCliente, type ClienteInput } from '@/app/clientes/actions'
 import { ClienteTagBadge } from './ClienteTagBadge'
@@ -95,7 +95,10 @@ export function ClienteForm({ onClose, onSuccess, companies, processors, editing
     if (!form.full_name.trim()) { setError('El nombre es obligatorio.'); return }
     setError(null)
 
-    const input: ClienteInput = { ...form }
+    const input: ClienteInput = {
+      ...form,
+      document_id: form.document_id ? formatRutForStorage(form.document_id) : form.document_id,
+    }
 
     startTransition(async () => {
       const result = editing

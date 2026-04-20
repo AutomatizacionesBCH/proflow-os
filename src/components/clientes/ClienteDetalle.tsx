@@ -155,7 +155,7 @@ export function ClienteDetalle({ cliente, operations, companies, processors }: P
           )}
 
           {/* Documentos del cliente */}
-          <ClienteDocumentos clienteId={cliente.id} />
+          <ClienteDocumentos clienteId={cliente.id} operationIds={operations.map(o => o.id)} />
 
           {/* Historial de operaciones */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">

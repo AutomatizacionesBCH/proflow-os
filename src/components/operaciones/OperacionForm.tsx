@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
-import { X, Sparkles, TrendingUp, TrendingDown, AlertCircle, FileText, Download, ChevronDown, ChevronUp } from 'lucide-react'
-import { cn, calcOperation, suggestPayoutPct, formatCLP, formatUSD, formatPct } from '@/lib/utils'
+import { useState, useEffect, useTransition, useRef } from 'react'
+import {
+  X, Sparkles, TrendingUp, TrendingDown, AlertCircle, FileText, Download,
+  ChevronDown, ChevronUp, Upload, Trash2, UserCheck, UserPlus,
+} from 'lucide-react'
+import { cn, calcOperation, suggestPayoutPct, formatCLP, formatUSD, formatPct, formatRutForStorage, formatRutForDisplay } from '@/lib/utils'
 import type { OperationStatus } from '@/types'
-import { createOperation, updateOperation, type CreateOperationInput } from '@/app/operaciones/actions'
+import { createOperation, updateOperation, ensureCliente, type CreateOperationInput } from '@/app/operaciones/actions'
 import { generateContract } from '@/app/operaciones/contractActions'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { Operation } from '@/types'
 
@@ -61,6 +65,19 @@ type ContractFields = {
   tarjeta_credito: string
 }
 
+type UploadedDoc = {
+  displayName: string
+  size: number
+  url: string
+  path: string
+}
+
+const ALLOWED_DOC_TYPES = [
+  'image/jpeg', 'image/png', 'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]
+const MAX_DOC_SIZE = 10 * 1024 * 1024
+
 const INITIAL: FormValues = {
   client_id: '',
   company_id: '',
@@ -98,6 +115,7 @@ type Props = {
 export function OperacionForm({ onClose, onSuccess, editing }: Props) {
   const router = useRouter()
   const [, startRefresh] = useTransition()
+  const supabase = createClient()
 
   const [form, setForm] = useState<FormValues>(() =>
     editing
@@ -120,27 +138,78 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
         }
       : INITIAL
   )
-  const [contract, setContract]           = useState<ContractFields>(INITIAL_CONTRACT)
-  const [contractOpen, setContractOpen]   = useState(false)
-  const [payoutManual, setPayoutManual]   = useState(!!editing)
-  const [error, setError]                 = useState<string | null>(null)
-  const [isPending, startTransition]      = useTransition()
 
-  // After successful save
-  const [savedOpId,    setSavedOpId]      = useState<string | null>(editing?.id ?? null)
-  const [savedOk,      setSavedOk]        = useState(false)
-  const [contractBusy, setContractBusy]   = useState(false)
-  const [contractDone, setContractDone]   = useState<{ docxUrl: string; pdfUrl: string } | null>(null)
+  // ── RUT lookup (new ops only) ─────────────────────────────────────────────
+  const [rutInput,        setRutInput]        = useState('')
+  const [clienteNombre,   setClienteNombre]   = useState('')
+  const [clienteLookup,   setClienteLookup]   = useState<{
+    status: 'idle' | 'searching' | 'found' | 'new'
+    found?: { id: string; full_name: string }
+  }>({ status: 'idle' })
+  const [resolvedClientId, setResolvedClientId] = useState<string | null>(null)
+  const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Doc upload ────────────────────────────────────────────────────────────
+  const [uploadedDocs, setUploadedDocs] = useState<UploadedDoc[]>([])
+  const [docUploading, setDocUploading] = useState(false)
+  const [docError,     setDocError]     = useState<string | null>(null)
+  const docFileRef                      = useRef<HTMLInputElement>(null)
+
+  const [contract, setContract]         = useState<ContractFields>(INITIAL_CONTRACT)
+  const [contractOpen, setContractOpen] = useState(false)
+  const [payoutManual, setPayoutManual] = useState(!!editing)
+  const [error, setError]               = useState<string | null>(null)
+  const [isPending, startTransition]    = useTransition()
+
+  const [savedOpId,    setSavedOpId]    = useState<string | null>(editing?.id ?? null)
+  const [savedOk,      setSavedOk]      = useState(false)
+  const [contractBusy, setContractBusy] = useState(false)
+  const [contractDone, setContractDone] = useState<{ docxUrl: string; pdfUrl: string } | null>(null)
 
   const n = (v: string) => parseFloat(v) || 0
 
+  // Auto-suggest payout %
   useEffect(() => {
     if (payoutManual) return
     const amt = n(form.amount_usd)
-    if (amt > 0) {
-      setForm(f => ({ ...f, client_payout_pct: String(suggestPayoutPct(amt)) }))
-    }
+    if (amt > 0) setForm(f => ({ ...f, client_payout_pct: String(suggestPayoutPct(amt)) }))
   }, [form.amount_usd, payoutManual])
+
+  // RUT lookup debounce
+  useEffect(() => {
+    if (editing) return
+    if (lookupTimer.current) clearTimeout(lookupTimer.current)
+
+    const normalized = formatRutForStorage(rutInput)
+    if (normalized.length < 7) {
+      setClienteLookup({ status: 'idle' })
+      return
+    }
+
+    setClienteLookup({ status: 'searching' })
+    lookupTimer.current = setTimeout(async () => {
+      const { data } = await supabase
+        .from('clients')
+        .select('id, full_name')
+        .eq('document_id', normalized)
+        .maybeSingle()
+
+      if (data) {
+        setClienteLookup({ status: 'found', found: { id: data.id, full_name: data.full_name } })
+        setClienteNombre(data.full_name)
+        setContract(c => ({
+          ...c,
+          cliente_nombre: data.full_name,
+          cliente_rut:    formatRutForDisplay(normalized),
+        }))
+      } else {
+        setClienteLookup({ status: 'new' })
+        setContract(c => ({ ...c, cliente_rut: formatRutForDisplay(normalized) }))
+      }
+    }, 500)
+
+    return () => { if (lookupTimer.current) clearTimeout(lookupTimer.current) }
+  }, [rutInput, editing]) // eslint-disable-line
 
   const calc = calcOperation({
     amount_usd:        n(form.amount_usd),
@@ -163,39 +232,61 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
   }
 
   function setC(key: keyof ContractFields) {
-    return (e: React.ChangeEvent<HTMLInputElement>) => {
-      setContract(f => ({ ...f, [key]: e.target.value }))
-    }
+    return (e: React.ChangeEvent<HTMLInputElement>) => setContract(f => ({ ...f, [key]: e.target.value }))
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
 
-    if (!form.client_id.trim()) { setError('El ID de cliente es obligatorio.'); return }
-    if (!form.operation_date)   { setError('La fecha es obligatoria.'); return }
-    if (!n(form.amount_usd))    { setError('El monto USD es obligatorio.'); return }
-    if (!n(form.fx_rate_used))  { setError('El tipo de cambio es obligatorio.'); return }
-
-    const payload: CreateOperationInput = {
-      client_id:         form.client_id.trim(),
-      company_id:        form.company_id.trim(),
-      processor_id:      form.processor_id.trim(),
-      operation_date:    form.operation_date,
-      amount_usd:        n(form.amount_usd),
-      client_payout_pct: n(form.client_payout_pct),
-      fx_rate_used:      n(form.fx_rate_used),
-      fx_source:         form.fx_source.trim(),
-      processor_fee_pct: n(form.processor_fee_pct),
-      loan_fee_pct:      n(form.loan_fee_pct),
-      payout_fee_pct:    n(form.payout_fee_pct),
-      wire_fee_usd:      n(form.wire_fee_usd),
-      receive_fee_usd:   n(form.receive_fee_usd),
-      status:            form.status,
-      notes:             form.notes.trim(),
+    if (!editing) {
+      const normalized = formatRutForStorage(rutInput)
+      if (normalized.length < 7)              { setError('Ingresa un RUT válido del cliente.'); return }
+      if (clienteLookup.status === 'searching') { setError('Espera mientras buscamos el cliente.'); return }
+      if (clienteLookup.status === 'idle')      { setError('Ingresa un RUT válido para buscar el cliente.'); return }
+      if (clienteLookup.status === 'new' && !clienteNombre.trim()) { setError('Ingresa el nombre del cliente.'); return }
+    } else {
+      if (!form.client_id.trim()) { setError('El ID de cliente es obligatorio.'); return }
     }
 
+    if (!form.operation_date)  { setError('La fecha es obligatoria.'); return }
+    if (!n(form.amount_usd))   { setError('El monto USD es obligatorio.'); return }
+    if (!n(form.fx_rate_used)) { setError('El tipo de cambio es obligatorio.'); return }
+
     startTransition(async () => {
+      let finalClientId = form.client_id.trim()
+
+      if (!editing) {
+        const normalized = formatRutForStorage(rutInput)
+        if (clienteLookup.status === 'found' && clienteLookup.found) {
+          finalClientId = clienteLookup.found.id
+          setResolvedClientId(clienteLookup.found.id)
+        } else {
+          const clientResult = await ensureCliente(normalized, clienteNombre.trim())
+          if (!clientResult.success) { setError(clientResult.error); return }
+          finalClientId = clientResult.id
+          setResolvedClientId(clientResult.id)
+        }
+      }
+
+      const payload: CreateOperationInput = {
+        client_id:         finalClientId,
+        company_id:        form.company_id.trim(),
+        processor_id:      form.processor_id.trim(),
+        operation_date:    form.operation_date,
+        amount_usd:        n(form.amount_usd),
+        client_payout_pct: n(form.client_payout_pct),
+        fx_rate_used:      n(form.fx_rate_used),
+        fx_source:         form.fx_source.trim(),
+        processor_fee_pct: n(form.processor_fee_pct),
+        loan_fee_pct:      n(form.loan_fee_pct),
+        payout_fee_pct:    n(form.payout_fee_pct),
+        wire_fee_usd:      n(form.wire_fee_usd),
+        receive_fee_usd:   n(form.receive_fee_usd),
+        status:            form.status,
+        notes:             form.notes.trim(),
+      }
+
       const result = editing
         ? await updateOperation(editing.id, payload)
         : await createOperation(payload)
@@ -219,26 +310,66 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
     }
     setError(null)
     setContractBusy(true)
-
     try {
-      // El servidor genera DOCX + PDF (con LibreOffice) y los sube a Storage
-      const result = await generateContract({ operation_id: savedOpId, ...contract })
-      if (result.success) {
-        setContractDone({ docxUrl: result.docxUrl, pdfUrl: result.pdfUrl })
-      } else {
-        setError(result.error)
-      }
+      const result = await generateContract({
+        operation_id: savedOpId,
+        ...contract,
+        cliente_rut: formatRutForDisplay(formatRutForStorage(contract.cliente_rut)),
+      })
+      if (result.success) setContractDone({ docxUrl: result.docxUrl, pdfUrl: result.pdfUrl })
+      else setError(result.error)
     } catch (e: unknown) {
       setError(`Error inesperado: ${e instanceof Error ? e.message : String(e)}`)
     }
-
     setContractBusy(false)
+  }
+
+  async function handleDocUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (!files.length || !resolvedClientId) return
+    setDocError(null)
+    setDocUploading(true)
+
+    for (const file of files) {
+      if (file.size > MAX_DOC_SIZE) {
+        setDocError(`"${file.name}" supera los 10 MB.`)
+        continue
+      }
+      if (!ALLOWED_DOC_TYPES.includes(file.type)) {
+        setDocError(`"${file.name}": solo JPG, PNG, PDF o Word.`)
+        continue
+      }
+      const safeName = file.name.replace(/[^a-zA-Z0-9._\-]/g, '_')
+      const path     = `clientes/${resolvedClientId}/${Date.now()}_${safeName}`
+      const { error: upErr } = await supabase.storage
+        .from('documentos-clientes')
+        .upload(path, file, { upsert: false })
+      if (upErr) { setDocError(upErr.message); continue }
+      const { data: u } = supabase.storage.from('documentos-clientes').getPublicUrl(path)
+      setUploadedDocs(d => [...d, { displayName: file.name, size: file.size, url: u.publicUrl, path }])
+    }
+
+    setDocUploading(false)
+    if (docFileRef.current) docFileRef.current.value = ''
+  }
+
+  async function handleDocDelete(doc: UploadedDoc) {
+    const { error: delErr } = await supabase.storage.from('documentos-clientes').remove([doc.path])
+    if (!delErr) setUploadedDocs(d => d.filter(x => x.path !== doc.path))
+  }
+
+  function formatBytes(bytes: number) {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   }
 
   function handleClose() {
     if (savedOk) onSuccess()
     else onClose()
   }
+
+  const showDocUpload = savedOk && resolvedClientId !== null
 
   return (
     <div className="fixed inset-0 z-50 flex">
@@ -285,17 +416,76 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
                   </select>
                 </Field>
               </div>
-              <div className="grid grid-cols-3 gap-4">
-                <Field title="ID Cliente" hint="Referencia al cliente">
-                  <input type="text" className={input} placeholder="CLI-001" value={form.client_id} onChange={set('client_id')} required disabled={savedOk} />
-                </Field>
-                <Field title="ID Empresa" hint="Opcional">
-                  <input type="text" className={input} placeholder="EMP-001" value={form.company_id} onChange={set('company_id')} disabled={savedOk} />
-                </Field>
-                <Field title="ID Procesador" hint="Opcional">
-                  <input type="text" className={input} placeholder="PROC-001" value={form.processor_id} onChange={set('processor_id')} disabled={savedOk} />
-                </Field>
-              </div>
+
+              {!editing ? (
+                /* Nueva operación — búsqueda por RUT */
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field title="RUT del cliente">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          className={input}
+                          placeholder="17590573-1"
+                          value={rutInput}
+                          onChange={e => setRutInput(e.target.value)}
+                          disabled={savedOk}
+                        />
+                        {clienteLookup.status === 'searching' && (
+                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                            <span className="w-3.5 h-3.5 border-2 border-slate-600 border-t-slate-400 rounded-full animate-spin block" />
+                          </div>
+                        )}
+                      </div>
+                    </Field>
+                    <Field title="Nombre completo">
+                      <input
+                        type="text"
+                        className={input}
+                        placeholder="Juan Pérez González"
+                        value={clienteNombre}
+                        onChange={e => setClienteNombre(e.target.value)}
+                        disabled={savedOk || clienteLookup.status === 'found'}
+                      />
+                    </Field>
+                  </div>
+
+                  {clienteLookup.status === 'found' && clienteLookup.found && (
+                    <div className="flex items-center gap-2 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-md px-3 py-2">
+                      <UserCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>Cliente encontrado: <strong>{clienteLookup.found.full_name}</strong></span>
+                    </div>
+                  )}
+                  {clienteLookup.status === 'new' && (
+                    <div className="flex items-center gap-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-md px-3 py-2">
+                      <UserPlus className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>Cliente nuevo — se creará automáticamente al guardar</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field title="ID Empresa" hint="Opcional">
+                      <input type="text" className={input} placeholder="EMP-001" value={form.company_id} onChange={set('company_id')} disabled={savedOk} />
+                    </Field>
+                    <Field title="ID Procesador" hint="Opcional">
+                      <input type="text" className={input} placeholder="PROC-001" value={form.processor_id} onChange={set('processor_id')} disabled={savedOk} />
+                    </Field>
+                  </div>
+                </div>
+              ) : (
+                /* Edición — campos de texto clásicos */
+                <div className="grid grid-cols-3 gap-4">
+                  <Field title="ID Cliente" hint="Referencia al cliente">
+                    <input type="text" className={input} placeholder="CLI-001" value={form.client_id} onChange={set('client_id')} required disabled={savedOk} />
+                  </Field>
+                  <Field title="ID Empresa" hint="Opcional">
+                    <input type="text" className={input} placeholder="EMP-001" value={form.company_id} onChange={set('company_id')} disabled={savedOk} />
+                  </Field>
+                  <Field title="ID Procesador" hint="Opcional">
+                    <input type="text" className={input} placeholder="PROC-001" value={form.processor_id} onChange={set('processor_id')} disabled={savedOk} />
+                  </Field>
+                </div>
+              )}
             </Section>
 
             {/* ── Monto y Tipo de Cambio ── */}
@@ -380,6 +570,70 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
               <textarea rows={3} className={cn(input, 'resize-none')} placeholder="Observaciones internas..." value={form.notes} onChange={set('notes')} disabled={savedOk} />
             </Section>
 
+            {/* ── Documentos ── */}
+            {showDocUpload && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">
+                  Documentos
+                </h3>
+
+                {docError && (
+                  <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
+                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                    {docError}
+                  </div>
+                )}
+
+                {uploadedDocs.length > 0 && (
+                  <div className="border border-slate-800 rounded-lg divide-y divide-slate-800/60">
+                    {uploadedDocs.map(doc => (
+                      <div key={doc.path} className="flex items-center gap-3 px-4 py-2.5">
+                        <div className="w-8 h-8 bg-slate-800 rounded border border-slate-700 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-3.5 h-3.5 text-slate-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-slate-300 truncate">{doc.displayName}</p>
+                          <p className="text-xs text-slate-600 font-mono">{formatBytes(doc.size)}</p>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <a href={doc.url} target="_blank" rel="noreferrer" download
+                            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors">
+                            <Download className="w-3.5 h-3.5" />
+                          </a>
+                          <button type="button" onClick={() => handleDocDelete(doc)}
+                            className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <label className={cn(
+                  'flex items-center gap-2 w-fit px-4 py-2 text-xs font-medium rounded-md cursor-pointer transition-colors border',
+                  docUploading
+                    ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600 hover:text-slate-100'
+                )}>
+                  {docUploading
+                    ? <><span className="w-3 h-3 border-2 border-slate-600 border-t-slate-400 rounded-full animate-spin" />Subiendo...</>
+                    : <><Upload className="w-3 h-3" />Subir documento</>
+                  }
+                  <input
+                    ref={docFileRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.pdf,.docx"
+                    multiple
+                    className="hidden"
+                    onChange={handleDocUpload}
+                    disabled={docUploading}
+                  />
+                </label>
+                <p className="text-xs text-slate-600">JPG, PNG, PDF, Word — máx. 10 MB por archivo</p>
+              </div>
+            )}
+
             {/* ── Datos para el contrato ── */}
             <div className="space-y-4">
               <button
@@ -400,8 +654,8 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
                     <Field title="Nombre completo del cliente">
                       <input type="text" className={input} placeholder="Juan Pérez González" value={contract.cliente_nombre} onChange={setC('cliente_nombre')} />
                     </Field>
-                    <Field title="RUT del cliente">
-                      <input type="text" className={input} placeholder="12.345.678-9" value={contract.cliente_rut} onChange={setC('cliente_rut')} />
+                    <Field title="RUT del cliente" hint="Con o sin puntos — se formatea automáticamente">
+                      <input type="text" className={input} placeholder="17590573-1" value={contract.cliente_rut} onChange={setC('cliente_rut')} />
                     </Field>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -412,8 +666,8 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
                       <input type="text" className={input} placeholder="Av. Providencia 123" value={contract.direccion} onChange={setC('direccion')} />
                     </Field>
                   </div>
-                  <Field title="Tarjeta de crédito" hint="No se guarda en la base de datos — solo aparece en el contrato">
-                    <input type="text" className={input} placeholder="4111 1111 1111 1111" value={contract.tarjeta_credito} onChange={setC('tarjeta_credito')} autoComplete="off" />
+                  <Field title="Tarjeta" hint="Ej: Visa 9158, Mastercard 4421 — solo aparece en el contrato">
+                    <input type="text" className={input} placeholder="Visa 9158" value={contract.tarjeta_credito} onChange={setC('tarjeta_credito')} autoComplete="off" />
                   </Field>
 
                   {contractDone && (
@@ -496,7 +750,6 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
               {savedOk ? 'Cerrar' : 'Cancelar'}
             </button>
 
-            {/* Generar Contrato — visible cuando hay savedOpId */}
             {savedOpId && !contractDone && (
               <button
                 type="button"
@@ -512,7 +765,6 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
               </button>
             )}
 
-            {/* Guardar — oculto después de guardar exitosamente */}
             {!savedOk && (
               <button type="submit" form="op-form" disabled={isPending}
                 className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">

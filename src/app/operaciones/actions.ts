@@ -146,3 +146,29 @@ export async function deleteOperation(id: string): Promise<ActionResult> {
   revalidatePath('/operaciones')
   return { success: true, id }
 }
+
+/** Encuentra un cliente por document_id o lo crea si no existe. */
+export async function ensureCliente(
+  document_id: string,
+  full_name: string,
+): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  const { data: existing } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('document_id', document_id)
+    .maybeSingle()
+
+  if (existing) return { success: true, id: existing.id }
+
+  const { data, error } = await supabase
+    .from('clients')
+    .insert({ full_name, document_id, tags: [] })
+    .select('id')
+    .single()
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/clientes')
+  return { success: true, id: data.id }
+}

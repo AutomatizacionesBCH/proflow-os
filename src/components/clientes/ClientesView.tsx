@@ -3,7 +3,7 @@
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, Filter, User } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatRutForStorage } from '@/lib/utils'
 import type { Cliente, ClientTag, Company, Processor } from '@/types'
 import { ClienteTagBadge } from './ClienteTagBadge'
 import { ClienteForm } from './ClienteForm'
@@ -39,11 +39,12 @@ export function ClientesView({ initialClientes, companies, processors }: Props) 
     return initialClientes.filter(c => {
       if (tagFilter !== 'todos' && !c.tags.includes(tagFilter)) return false
       if (search) {
-        const q = search.toLowerCase()
+        const q        = search.toLowerCase()
+        const qNormRut = formatRutForStorage(q)
         if (
           !c.full_name.toLowerCase().includes(q) &&
           !(c.email?.toLowerCase().includes(q)) &&
-          !(c.document_id?.toLowerCase().includes(q)) &&
+          !(c.document_id?.toLowerCase().includes(qNormRut)) &&
           !(c.phone?.toLowerCase().includes(q))
         ) return false
       }

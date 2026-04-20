@@ -1,66 +1,44 @@
+import { createClient } from '@/lib/supabase/server'
 import { PageShell } from '@/components/layout/PageShell'
-import { StatCard } from '@/components/ui/StatCard'
-import { Card } from '@/components/ui/Card'
-import { SectionTitle } from '@/components/ui/SectionTitle'
-import { DataTable } from '@/components/ui/DataTable'
-import { Badge } from '@/components/ui/Badge'
-import { Button } from '@/components/ui/Button'
-import { UserPlus } from 'lucide-react'
-import type { Status } from '@/types'
+import { ClientesView } from '@/components/clientes/ClientesView'
+import type { Cliente, Company, Processor } from '@/types'
 
-type ClienteRow = {
-  nombre: string
-  email: string
-  volumen: string
-  operaciones: string
-  estado: Status
-}
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
-const sampleClientes: ClienteRow[] = [
-  { nombre: 'Tech Solutions SA', email: 'ops@techsolutions.com', volumen: '$48,200', operaciones: '34', estado: 'active' },
-  { nombre: 'Distribuidora Norte', email: 'admin@distnorte.mx', volumen: '$22,750', operaciones: '18', estado: 'active' },
-  { nombre: 'Comercio Express', email: 'finanzas@comexp.com', volumen: '$8,100', operaciones: '7', estado: 'inactive' },
-  { nombre: 'LogiMax SA', email: 'ceo@logimax.com', volumen: '$34,900', operaciones: '22', estado: 'active' },
-  { nombre: 'FinTech MX', email: 'ops@fintechmx.io', volumen: '$91,400', operaciones: '67', estado: 'active' },
-]
+export default async function ClientesPage() {
+  const supabase = await createClient()
 
-export default function ClientesPage() {
-  return (
-    <PageShell
-      title="Clientes"
-      description="Base de clientes registrados"
-      action={<Button icon={UserPlus} size="sm">Agregar cliente</Button>}
-    >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard label="Total clientes" value="342" />
-        <StatCard
-          label="Activos este mes"
-          value="289"
-          delta="+14"
-          deltaDirection="up"
-        />
-        <StatCard label="Volumen promedio" value="$14,800" />
-      </div>
+  const [clientesRes, companiesRes, processorsRes] = await Promise.all([
+    supabase.from('clients').select('*').order('created_at', { ascending: false }),
+    supabase.from('companies').select('id, name, created_at').order('name'),
+    supabase.from('processors').select('id, name, type, created_at').order('name'),
+  ])
 
-      <Card noPadding>
-        <div className="p-5 border-b border-slate-800">
-          <SectionTitle title="Directorio de clientes" />
+  if (clientesRes.error) {
+    return (
+      <PageShell title="Clientes" description="Base de clientes registrados">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-5">
+          <p className="text-sm font-semibold text-red-400 mb-1">Error de conexión</p>
+          <p className="text-xs text-slate-500 font-mono">
+            [{clientesRes.error.code}] {clientesRes.error.message}
+          </p>
         </div>
-        <DataTable<Record<string, unknown>>
-          columns={[
-            { key: 'nombre', header: 'Nombre' },
-            { key: 'email', header: 'Email' },
-            { key: 'volumen', header: 'Volumen total' },
-            { key: 'operaciones', header: 'Operaciones' },
-            {
-              key: 'estado',
-              header: 'Estado',
-              render: (row) => <Badge variant={row.estado as Status} />,
-            },
-          ]}
-          data={sampleClientes as unknown as Record<string, unknown>[]}
-        />
-      </Card>
+      </PageShell>
+    )
+  }
+
+  const clientes  = (clientesRes.data  ?? []) as Cliente[]
+  const companies = (companiesRes.data  ?? []) as Company[]
+  const processors = (processorsRes.data ?? []) as Processor[]
+
+  return (
+    <PageShell title="Clientes" description="Base de clientes registrados">
+      <ClientesView
+        initialClientes={clientes}
+        companies={companies}
+        processors={processors}
+      />
     </PageShell>
   )
 }

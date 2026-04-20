@@ -80,6 +80,81 @@ export interface Database {
         }
         Relationships: []
       }
+      clients: {
+        Row: {
+          id: string
+          full_name: string
+          document_id: string | null
+          email: string | null
+          phone: string | null
+          assigned_company_id: string | null
+          assigned_processor_id: string | null
+          tags: string[]
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          full_name: string
+          document_id?: string | null
+          email?: string | null
+          phone?: string | null
+          assigned_company_id?: string | null
+          assigned_processor_id?: string | null
+          tags?: string[]
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          full_name?: string
+          document_id?: string | null
+          email?: string | null
+          phone?: string | null
+          assigned_company_id?: string | null
+          assigned_processor_id?: string | null
+          tags?: string[]
+          notes?: string | null
+        }
+        Relationships: []
+      }
+      companies: {
+        Row: {
+          id: string
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      processors: {
+        Row: {
+          id: string
+          name: string
+          type: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          type?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          type?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

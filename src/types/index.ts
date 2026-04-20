@@ -34,10 +34,32 @@ export type Operation = {
   updated_at: string
 }
 
-export type Cliente = BaseEntity & {
-  nombre: string
-  email: string
-  status: Status
+export type ClientTag = 'VIP' | 'frecuente' | 'nuevo' | 'riesgo' | 'pausado'
+
+export type Cliente = {
+  id: string
+  full_name: string
+  document_id: string | null
+  email: string | null
+  phone: string | null
+  assigned_company_id: string | null
+  assigned_processor_id: string | null
+  tags: ClientTag[]
+  notes: string | null
+  created_at: string
+}
+
+export type Company = {
+  id: string
+  name: string
+  created_at: string
+}
+
+export type Processor = {
+  id: string
+  name: string
+  type: string | null
+  created_at: string
 }
 
 export type Lead = BaseEntity & {

@@ -199,6 +199,32 @@ export interface Database {
         }
         Relationships: []
       }
+      marketing_spend: {
+        Row: {
+          id: string
+          date: string
+          channel: 'Meta' | 'TikTok' | 'LinkedIn' | 'Twitter/X' | 'referido' | 'otro'
+          amount_clp: number
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          date: string
+          channel: 'Meta' | 'TikTok' | 'LinkedIn' | 'Twitter/X' | 'referido' | 'otro'
+          amount_clp: number
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          date?: string
+          channel?: 'Meta' | 'TikTok' | 'LinkedIn' | 'Twitter/X' | 'referido' | 'otro'
+          amount_clp?: number
+          notes?: string | null
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           id: string

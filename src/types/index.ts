@@ -96,3 +96,14 @@ export type Lead = {
   notes: string | null
   created_at: string
 }
+
+export type MarketingChannel = 'Meta' | 'TikTok' | 'LinkedIn' | 'Twitter/X' | 'referido' | 'otro'
+
+export type MarketingSpend = {
+  id: string
+  date: string
+  channel: MarketingChannel
+  amount_clp: number
+  notes: string | null
+  created_at: string
+}

@@ -13,6 +13,8 @@ Interfaz en español, tema oscuro profesional.
 - **Tailwind CSS 4** — usa `@import "tailwindcss"` y `@theme` en CSS. **No hay `tailwind.config.ts`**.
 - **Supabase** (`@supabase/ssr` + `@supabase/supabase-js`) — credenciales en `.env.local`
 - **lucide-react** para íconos, **clsx** + **tailwind-merge** para clases
+- **docxtemplater + pizzip** — relleno de plantillas Word en el servidor
+- **LibreOffice** (instalado via nixpacks.toml) — conversión DOCX → PDF en el servidor
 
 ## Comandos
 
@@ -32,11 +34,14 @@ src/
 │   ├── dashboard/page.tsx        # Server Component — KPIs reales + tablas desde Supabase
 │   ├── operaciones/
 │   │   ├── page.tsx              # Server Component — lee operations
-│   │   └── actions.ts            # createOperation, updateOperationStatus
+│   │   ├── actions.ts            # createOperation, updateOperation, deleteOperation,
+│   │   │                         # updateOperationStatus, ensureCliente
+│   │   └── contractActions.ts    # generateContract — rellena DOCX + convierte a PDF
+│   │                             # con LibreOffice, sube a bucket "contratos"
 │   ├── clientes/
 │   │   ├── page.tsx              # Server Component — lee clients + companies + processors
 │   │   ├── actions.ts            # createCliente, updateCliente
-│   │   └── [id]/page.tsx         # Ficha de cliente — historial ops + stats
+│   │   └── [id]/page.tsx         # Ficha de cliente — historial ops + stats + docs
 │   ├── empresas/
 │   │   ├── page.tsx              # Server Component — lee companies
 │   │   └── actions.ts            # createEmpresa, updateEmpresa
@@ -70,12 +75,17 @@ src/
 │   │   └── PlaceholderChart.tsx  # Placeholder — reemplazar con recharts si se necesita
 │   ├── operaciones/
 │   │   ├── OperacionesView.tsx   # 'use client' — tabla + filtros + stats
-│   │   ├── OperacionForm.tsx     # 'use client' — slide-over con calculadora en tiempo real
+│   │   ├── OperacionForm.tsx     # 'use client' — slide-over con calculadora en tiempo real,
+│   │   │                         # lookup de cliente por RUT, creación automática de cliente,
+│   │   │                         # subida de documentos, generación de contrato DOCX+PDF
 │   │   └── OperacionStatusBadge.tsx
 │   ├── clientes/
-│   │   ├── ClientesView.tsx      # 'use client' — tabla + búsqueda + filtro por tag
-│   │   ├── ClienteForm.tsx       # 'use client' — slide-over crear/editar
-│   │   ├── ClienteDetalle.tsx    # 'use client' — ficha completa + historial + stats
+│   │   ├── ClientesView.tsx      # 'use client' — tabla + búsqueda + filtro por tag +
+│   │   │                         # panel de documentos por cliente (botón "Docs" por fila)
+│   │   ├── ClienteForm.tsx       # 'use client' — slide-over crear/editar (normaliza RUT)
+│   │   ├── ClienteDetalle.tsx    # 'use client' — ficha completa + historial + stats + docs
+│   │   ├── ClienteDocumentos.tsx # 'use client' — gestor de documentos: subida, listado
+│   │   │                         # agrupado por fecha, contratos, preview imágenes
 │   │   └── ClienteTagBadge.tsx
 │   ├── empresas/
 │   │   ├── EmpresasView.tsx      # 'use client' — tabla + búsqueda + filtro estado
@@ -105,7 +115,8 @@ src/
 │   │   ├── client.ts             # createBrowserClient — para Client Components
 │   │   └── server.ts             # createServerClient — para Server Components
 │   └── utils.ts                  # cn(), formatCLP(), formatUSD(), formatPct(),
-│                                 # suggestPayoutPct(), calcOperation()
+│                                 # suggestPayoutPct(), calcOperation(),
+│                                 # formatRutForStorage(), formatRutForDisplay(), validateRut()
 │
 └── types/
     ├── index.ts                  # Todos los tipos del dominio
@@ -163,11 +174,46 @@ startTransition(() => router.refresh())
 - Header fijo / body `flex-1 overflow-y-auto` / footer fijo con botones
 - Estado visual de status: botones toggle coloreados por estado (no `<select>`)
 
+### Modal centrado
+- `fixed inset-0 z-50 flex items-center justify-center p-4`
+- Overlay `absolute inset-0 bg-black/60 backdrop-blur-sm` con onClick para cerrar
+- Panel `relative w-full max-w-lg bg-slate-900 rounded-xl border border-slate-800 shadow-2xl flex flex-col max-h-[85vh]`
+
 ### Nueva página
 1. Crear `src/app/nueva-ruta/page.tsx` con `export const dynamic = 'force-dynamic'`
 2. Agregar entrada en `src/config/navigation.ts`
 3. Usar `<PageShell>` como wrapper
 4. Server Component + `createClient()` de server → pasar a Client Component via props
+
+### RUT chileno
+```ts
+import { formatRutForStorage, formatRutForDisplay, validateRut } from '@/lib/utils'
+
+formatRutForStorage('17.590.573-1')  // → '17590573-1'  (para guardar en DB)
+formatRutForDisplay('17590573-1')    // → '17.590.573-1' (para mostrar / contrato)
+validateRut('17590573-1')            // → true
+```
+- Siempre guardar en Supabase SIN puntos (solo guión): `17590573-1`
+- Mostrar al usuario CON puntos: `17.590.573-1`
+- La búsqueda normaliza antes de comparar
+
+### Supabase Storage (client-side)
+```ts
+import { createClient } from '@/lib/supabase/client'
+const supabase = createClient()
+
+// Subir archivo
+await supabase.storage.from('documentos-clientes')
+  .upload(`clientes/${clientId}/${Date.now()}_${safeName}`, file, { upsert: false })
+
+// URL pública
+const { data } = supabase.storage.from('documentos-clientes')
+  .getPublicUrl(`clientes/${clientId}/${filename}`)
+
+// Listar carpeta
+const { data: files } = await supabase.storage.from('documentos-clientes')
+  .list(`clientes/${clientId}`)
+```
 
 ## Diseño — tokens de color
 
@@ -200,8 +246,9 @@ Valores monetarios: siempre `font-mono`. Fechas: `es-CL` locale.
 | 007 | `007_create_marketing_spend.sql` | Tabla `marketing_spend` |
 
 ### `operations`
-`client_id` (text), `company_id` (uuid FK), `processor_id` (uuid FK), `operation_date`, `amount_usd`, `fx_rate_used`, `client_payout_pct`, fees (`processor_fee_pct`, `loan_fee_pct`, `payout_fee_pct`, `wire_fee_usd`, `receive_fee_usd`), calculados (`gross_clp`, `amount_clp_paid`, `profit_clp`), `status` (pendiente/en_proceso/completada/anulada).
+`client_id` (uuid FK → clients.id), `company_id` (uuid FK), `processor_id` (uuid FK), `operation_date`, `amount_usd`, `fx_rate_used`, `client_payout_pct`, fees (`processor_fee_pct`, `loan_fee_pct`, `payout_fee_pct`, `wire_fee_usd`, `receive_fee_usd`), calculados (`gross_clp`, `amount_clp_paid`, `profit_clp`), `status` (pendiente/en_proceso/completada/anulada), `contract_url`.
 Lógica de cálculo centralizada en `src/lib/utils.ts → calcOperation()`.
+Al crear una operación nueva se busca el cliente por RUT (`ensureCliente`): si no existe se crea automáticamente.
 
 ### `companies`
 `id`, `name`, `legal_name`, `status` (activo/pausado/en_riesgo), `notes`, `created_at`.
@@ -210,7 +257,7 @@ Lógica de cálculo centralizada en `src/lib/utils.ts → calcOperation()`.
 `id`, `name`, `company_id` (FK → companies), `type`, `status` (activo/pausado/en_riesgo), `daily_limit_usd`, `notes`, `created_at`.
 
 ### `clients`
-`id`, `full_name`, `document_id`, `email`, `phone`, `assigned_company_id` (FK), `assigned_processor_id` (FK), `tags` (text[]), `notes`, `created_at`.
+`id`, `full_name`, `document_id` (RUT sin puntos, ej: `17590573-1`), `email`, `phone`, `assigned_company_id` (FK), `assigned_processor_id` (FK), `tags` (text[]), `notes`, `created_at`.
 
 ### `cash_positions`
 `id`, `date`, `available_clp`, `notes`, `created_at`.
@@ -220,6 +267,18 @@ Lógica de cálculo centralizada en `src/lib/utils.ts → calcOperation()`.
 
 ### `marketing_spend`
 `id`, `date`, `channel` (Meta/TikTok/LinkedIn/Twitter/X/referido/otro), `amount_clp`, `notes`, `created_at`.
+
+## Supabase Storage — buckets
+
+| Bucket | Acceso | Estructura de rutas |
+|---|---|---|
+| `documentos-clientes` | Público | `clientes/[client_id]/[timestamp]_[nombre]` |
+| `contratos` | Público | `contratos/[operation_id]/[nombre].docx` y `.pdf` |
+
+- Límite por archivo: 10 MB
+- Formatos permitidos: JPG, PNG, PDF, Word (.docx)
+- Los contratos se generan con `contractActions.ts` (docxtemplater + LibreOffice headless)
+- La plantilla Word está en `public/contrato_template.docx`, delimitadores `[` y `]`
 
 ## Tipos del dominio (`src/types/index.ts`)
 
@@ -248,21 +307,20 @@ type MarketingSpend  { id, date, channel, amount_clp, notes, created_at }
 | Módulo | Estado | Tabla Supabase | Notas |
 |---|---|---|---|
 | Dashboard | ✅ Completo | múltiples | KPIs reales, últimas ops, caja, procesadores, leads por canal |
-| Operaciones | ✅ Completo | `operations` | Calculadora tiempo real, filtros, estados |
-| Clientes | ✅ Completo | `clients` | Lista + ficha `/clientes/[id]` + historial ops |
+| Operaciones | ✅ Completo | `operations` | Calculadora tiempo real, filtros, estados, RUT lookup + auto-create cliente, subida docs, generación contrato DOCX+PDF |
+| Clientes | ✅ Completo | `clients` | Lista + ficha `/clientes/[id]` + historial ops + panel de docs desde lista |
 | Empresas | ✅ Completo | `companies` | Lista + CRUD + badges de estado |
 | Procesadores | ✅ Completo | `processors` | Lista + CRUD + barra uso diario USD |
 | Caja | ✅ Completo | `cash_positions` | Caja actual + estimado capacidad + historial |
 | Leads | ✅ Completo | `leads` | Pipeline + filtros dual + convertir a cliente |
 | Marketing | ✅ Completo | `marketing_spend` | Gasto por canal + barras visuales + historial |
+| Documentos | ✅ Completo | Storage | Gestión de archivos por cliente, agrupados por fecha, con contratos integrados |
 
 ## Próximos pasos planeados
 
-- Conectar `client_id` en operaciones al UUID real de `clients` (hoy es text libre)
-- Convertir `company_id` y `processor_id` en OperacionForm a selects reales de Supabase
+- Convertir `company_id` y `processor_id` en OperacionForm a selects reales desde Supabase
 - Vista detalle por operación (`/operaciones/[id]`)
 - Autenticación con Supabase Auth + middleware
 - Importador CSV para historial Stripe y NMI
-- Documentos por cliente (Supabase Storage)
 - Integraciones automáticas con Meta Ads
 - Reemplazar `PlaceholderChart` con recharts cuando se necesite gráfico real

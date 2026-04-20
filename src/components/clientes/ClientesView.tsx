@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import type { Cliente, ClientTag, Company, Processor } from '@/types'
 import { ClienteTagBadge } from './ClienteTagBadge'
 import { ClienteForm } from './ClienteForm'
+import { KpiBox } from '@/components/ui/KpiBox'
 
 const ALL_TAGS: (ClientTag | 'todos')[] = ['todos', 'VIP', 'frecuente', 'nuevo', 'riesgo', 'pausado']
 
@@ -88,10 +89,10 @@ export function ClientesView({ initialClientes, companies, processors }: Props) 
 
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatBox label="Total clientes" value={String(stats.total)} />
-        <StatBox label="VIP" value={String(stats.vip)} highlight />
-        <StatBox label="Nuevos" value={String(stats.nuevos)} positive />
-        <StatBox label="En riesgo" value={String(stats.riesgo)} warn={stats.riesgo > 0} />
+        <KpiBox label="Total clientes" value={String(stats.total)} />
+        <KpiBox label="VIP"            value={String(stats.vip)} highlight />
+        <KpiBox label="Nuevos"         value={String(stats.nuevos)} positive={stats.nuevos > 0} />
+        <KpiBox label="En riesgo"      value={String(stats.riesgo)} warn={stats.riesgo > 0} />
       </div>
 
       {/* Filtros */}
@@ -236,23 +237,3 @@ export function ClientesView({ initialClientes, companies, processors }: Props) 
   )
 }
 
-function StatBox({
-  label, value, highlight, positive, warn,
-}: {
-  label: string; value: string; highlight?: boolean; positive?: boolean; warn?: boolean
-}) {
-  return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className={cn(
-        'text-xl font-bold font-mono',
-        highlight  ? 'text-purple-400' :
-        positive   ? 'text-green-400'  :
-        warn       ? 'text-amber-400'  :
-        'text-slate-100'
-      )}>
-        {value}
-      </p>
-    </div>
-  )
-}

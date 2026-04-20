@@ -9,6 +9,7 @@ import { LeadStatusBadge } from './LeadStatusBadge'
 import { LeadChannelBadge } from './LeadChannelBadge'
 import { LeadForm } from './LeadForm'
 import { convertLead } from '@/app/leads/actions'
+import { KpiBox } from '@/components/ui/KpiBox'
 
 const STATUS_FILTERS: { value: LeadStatus | 'todos'; label: string }[] = [
   { value: 'todos',          label: 'Todos' },
@@ -97,10 +98,10 @@ export function LeadsView({ initialLeads }: Props) {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatBox label="Total leads"   value={String(stats.total)} />
-        <StatBox label="Nuevos"        value={String(stats.nuevos)}      warn={stats.nuevos > 0} />
-        <StatBox label="Convertidos"   value={String(stats.convertidos)} positive />
-        <StatBox label="Perdidos"      value={String(stats.perdidos)}    danger={stats.perdidos > 0} />
+        <KpiBox label="Total leads"  value={String(stats.total)} />
+        <KpiBox label="Nuevos"       value={String(stats.nuevos)}       warn={stats.nuevos > 0} />
+        <KpiBox label="Convertidos"  value={String(stats.convertidos)}  positive={stats.convertidos > 0} />
+        <KpiBox label="Perdidos"     value={String(stats.perdidos)}     danger={stats.perdidos > 0} />
       </div>
 
       {/* Filtros */}
@@ -274,23 +275,3 @@ export function LeadsView({ initialLeads }: Props) {
   )
 }
 
-function StatBox({
-  label, value, positive, warn, danger,
-}: {
-  label: string; value: string; positive?: boolean; warn?: boolean; danger?: boolean
-}) {
-  return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className={cn(
-        'text-xl font-bold font-mono',
-        positive ? 'text-green-400' :
-        danger   ? 'text-red-400'   :
-        warn     ? 'text-amber-400' :
-        'text-slate-100'
-      )}>
-        {value}
-      </p>
-    </div>
-  )
-}

@@ -8,6 +8,7 @@ import type { Operation, OperationStatus } from '@/types'
 import { OperacionStatusBadge } from './OperacionStatusBadge'
 import { OperacionForm } from './OperacionForm'
 import { updateOperationStatus } from '@/app/operaciones/actions'
+import { KpiBox } from '@/components/ui/KpiBox'
 
 const ALL_STATUSES: { value: OperationStatus | 'all'; label: string }[] = [
   { value: 'all',        label: 'Todas' },
@@ -74,10 +75,10 @@ export function OperacionesView({ initialOperations }: Props) {
 
       {/* ── KPI Stats ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatBox label="Total operaciones" value={String(stats.total)} />
-        <StatBox label="Volumen USD" value={formatUSD(stats.amountUsd)} highlight />
-        <StatBox label="Utilidad CLP" value={formatCLP(stats.profitClp)} positive={stats.profitClp >= 0} />
-        <StatBox label="Pendientes" value={String(stats.pendientes)} warn={stats.pendientes > 0} />
+        <KpiBox label="Total operaciones" value={String(stats.total)} />
+        <KpiBox label="Volumen USD"       value={formatUSD(stats.amountUsd)} />
+        <KpiBox label="Utilidad CLP"      value={formatCLP(stats.profitClp)} positive={stats.profitClp >= 0} danger={stats.profitClp < 0} />
+        <KpiBox label="Pendientes"        value={String(stats.pendientes)} warn={stats.pendientes > 0} />
       </div>
 
       {/* ── Filtros ── */}
@@ -296,33 +297,3 @@ function OperacionRow({
   )
 }
 
-// ─── KPI stat box pequeño ────────────────────────────────────────────────────
-function StatBox({
-  label,
-  value,
-  highlight,
-  positive,
-  warn,
-}: {
-  label: string
-  value: string
-  highlight?: boolean
-  positive?: boolean
-  warn?: boolean
-}) {
-  return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className={cn(
-        'text-xl font-bold font-mono',
-        highlight ? 'text-slate-100' :
-        positive === true ? 'text-green-400' :
-        positive === false ? 'text-red-400' :
-        warn ? 'text-amber-400' :
-        'text-slate-100'
-      )}>
-        {value}
-      </p>
-    </div>
-  )
-}

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import type { Processor, ProcessorStatus, Company } from '@/types'
 import { ProcesadorStatusBadge } from './ProcesadorStatusBadge'
 import { ProcesadorForm } from './ProcesadorForm'
+import { KpiBox } from '@/components/ui/KpiBox'
 
 const STATUS_FILTERS: { value: ProcessorStatus | 'todos'; label: string }[] = [
   { value: 'todos',     label: 'Todos' },
@@ -89,10 +90,10 @@ export function ProcesadoresView({ initialProcesadores, companies, dailyUsage }:
 
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatBox label="Total procesadores" value={String(stats.total)} />
-        <StatBox label="Activos"  value={String(stats.activos)}  positive />
-        <StatBox label="Pausados" value={String(stats.pausados)} warn={stats.pausados > 0} />
-        <StatBox label="En riesgo" value={String(stats.riesgo)} danger={stats.riesgo > 0} />
+        <KpiBox label="Total procesadores" value={String(stats.total)} />
+        <KpiBox label="Activos"            value={String(stats.activos)} positive={stats.activos > 0} />
+        <KpiBox label="Pausados"           value={String(stats.pausados)} warn={stats.pausados > 0} />
+        <KpiBox label="En riesgo"          value={String(stats.riesgo)} danger={stats.riesgo > 0} />
       </div>
 
       {/* Filtros */}
@@ -264,23 +265,3 @@ export function ProcesadoresView({ initialProcesadores, companies, dailyUsage }:
   )
 }
 
-function StatBox({
-  label, value, positive, warn, danger,
-}: {
-  label: string; value: string; positive?: boolean; warn?: boolean; danger?: boolean
-}) {
-  return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className={cn(
-        'text-xl font-bold font-mono',
-        positive ? 'text-green-400' :
-        danger   ? 'text-red-400'   :
-        warn     ? 'text-amber-400' :
-        'text-slate-100'
-      )}>
-        {value}
-      </p>
-    </div>
-  )
-}

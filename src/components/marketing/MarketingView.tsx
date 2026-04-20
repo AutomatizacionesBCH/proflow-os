@@ -7,6 +7,7 @@ import { cn, formatCLP } from '@/lib/utils'
 import type { MarketingSpend, MarketingChannel } from '@/types'
 import { MarketingForm } from './MarketingForm'
 import { deleteMarketingSpend } from '@/app/marketing/actions'
+import { KpiBox } from '@/components/ui/KpiBox'
 
 const CHANNEL_COLORS: Record<MarketingChannel, { bar: string; text: string; border: string }> = {
   'Meta':      { bar: 'bg-blue-500',   text: 'text-blue-400',   border: 'border-blue-500/20' },
@@ -85,14 +86,10 @@ export function MarketingView({ initialSpends }: Props) {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatBox label="Gasto total"       value={formatCLP(stats.total)} />
-        <StatBox label="Este mes"          value={formatCLP(stats.thisMonth)} />
-        <StatBox
-          label="Canal principal"
-          value={stats.maxChannel?.channel ?? '—'}
-          sub={stats.maxChannel ? formatCLP(stats.maxChannel.total) : undefined}
-        />
-        <StatBox label="Registros"         value={String(initialSpends.length)} />
+        <KpiBox label="Gasto total"    value={formatCLP(stats.total)} />
+        <KpiBox label="Este mes"       value={formatCLP(stats.thisMonth)} />
+        <KpiBox label="Canal principal" value={stats.maxChannel?.channel ?? '—'} sub={stats.maxChannel ? formatCLP(stats.maxChannel.total) : undefined} />
+        <KpiBox label="Registros"      value={String(initialSpends.length)} />
       </div>
 
       {/* Distribución por canal */}
@@ -236,16 +233,3 @@ export function MarketingView({ initialSpends }: Props) {
   )
 }
 
-function StatBox({
-  label, value, sub,
-}: {
-  label: string; value: string; sub?: string
-}) {
-  return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className="text-xl font-bold font-mono text-slate-100">{value}</p>
-      {sub && <p className="text-xs text-slate-500 font-mono mt-0.5">{sub}</p>}
-    </div>
-  )
-}

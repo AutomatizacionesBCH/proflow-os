@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import type { Company, EmpresaStatus } from '@/types'
 import { EmpresaStatusBadge } from './EmpresaStatusBadge'
 import { EmpresaForm } from './EmpresaForm'
+import { KpiBox } from '@/components/ui/KpiBox'
 
 const STATUS_FILTERS: { value: EmpresaStatus | 'todos'; label: string }[] = [
   { value: 'todos',     label: 'Todas' },
@@ -76,10 +77,10 @@ export function EmpresasView({ initialEmpresas }: Props) {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatBox label="Total empresas"  value={String(stats.total)} />
-        <StatBox label="Activas"         value={String(stats.activas)} positive />
-        <StatBox label="Pausadas"        value={String(stats.pausadas)} warn={stats.pausadas > 0} />
-        <StatBox label="En riesgo"       value={String(stats.riesgo)}  danger={stats.riesgo > 0} />
+        <KpiBox label="Total empresas" value={String(stats.total)} />
+        <KpiBox label="Activas"        value={String(stats.activas)} positive={stats.activas > 0} />
+        <KpiBox label="Pausadas"       value={String(stats.pausadas)} warn={stats.pausadas > 0} />
+        <KpiBox label="En riesgo"      value={String(stats.riesgo)} danger={stats.riesgo > 0} />
       </div>
 
       {/* Filtros */}
@@ -214,23 +215,3 @@ export function EmpresasView({ initialEmpresas }: Props) {
   )
 }
 
-function StatBox({
-  label, value, positive, warn, danger,
-}: {
-  label: string; value: string; positive?: boolean; warn?: boolean; danger?: boolean
-}) {
-  return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-      <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">{label}</p>
-      <p className={cn(
-        'text-xl font-bold font-mono',
-        positive ? 'text-green-400' :
-        danger   ? 'text-red-400'   :
-        warn     ? 'text-amber-400' :
-        'text-slate-100'
-      )}>
-        {value}
-      </p>
-    </div>
-  )
-}

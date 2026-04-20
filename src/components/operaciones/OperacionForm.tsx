@@ -222,61 +222,77 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
     setContractBusy(true)
 
     try {
-      // 1. Servidor genera DOCX y lo sube a Storage
+      // 1. Servidor genera DOCX, lo sube a Storage y convierte a HTML
       const result = await generateContract({ operation_id: savedOpId, ...contract })
       if (!result.success) { setError(result.error); setContractBusy(false); return }
 
-      // 2. Cliente genera PDF con jsPDF (sin dependencias de fuentes del servidor)
-      const { default: jsPDF } = await import('jspdf')
-      const now      = new Date()
-      const fechaChi = now.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
-      const mm       = String(now.getMonth() + 1).padStart(2, '0')
-      const dd       = String(now.getDate()).padStart(2, '0')
-      const fechaUsa = `${mm}/${dd}/${now.getFullYear()}`
+      // 2. Genera PDF a partir del HTML exacto del Word usando html2canvas + jsPDF
+      const { default: html2canvas } = await import('html2canvas')
+      const { default: jsPDF }       = await import('jspdf')
 
-      const doc = new jsPDF()
-      doc.setFontSize(16)
-      doc.setFont('helvetica', 'bold')
-      doc.text('CONTRATO DE CAMBIO DE DIVISAS', 105, 20, { align: 'center' })
+      const container = document.createElement('div')
+      container.style.cssText = [
+        'position:fixed', 'left:-9999px', 'top:0',
+        'width:794px',    // ancho A4 a 96dpi
+        'background:#fff',
+        'color:#000',
+        'font-family:Times New Roman,serif',
+        'font-size:12pt',
+        'line-height:1.5',
+        'padding:60px',
+        'box-sizing:border-box',
+      ].join(';')
 
-      doc.setFontSize(9)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(80)
-      doc.text(`Fecha (CL): ${fechaChi}     Fecha (USA): ${fechaUsa}`, 105, 28, { align: 'center' })
+      // Estilos base para que el HTML de mammoth quede bien
+      container.innerHTML = `
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: Times New Roman, serif; font-size: 12pt; color: #000; }
+          p  { margin-bottom: 6pt; }
+          h1 { font-size: 16pt; text-align: center; margin-bottom: 12pt; }
+          h2 { font-size: 13pt; margin-top: 18pt; margin-bottom: 6pt; }
+          h3 { font-size: 12pt; margin-top: 12pt; margin-bottom: 4pt; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 10pt; }
+          td, th { padding: 4pt 6pt; border: 1px solid #ccc; font-size: 11pt; }
+          strong, b { font-weight: bold; }
+          em, i { font-style: italic; }
+          u { text-decoration: underline; }
+        </style>
+        ${result.htmlContent}
+      `
+      document.body.appendChild(container)
 
-      doc.setTextColor(0)
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.text('DATOS DEL CLIENTE', 15, 45)
-      doc.setDrawColor(200)
-      doc.line(15, 47, 195, 47)
+      // Esperar a que el DOM renderice
+      await new Promise(r => requestAnimationFrame(r))
 
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      doc.text(`Nombre completo:  ${contract.cliente_nombre}`, 15, 55)
-      doc.text(`RUT:              ${contract.cliente_rut}`, 15, 62)
-      doc.text(`Ciudad:           ${contract.ciudad}`, 15, 69)
-      doc.text(`Dirección:        ${contract.direccion}`, 15, 76)
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      })
+      document.body.removeChild(container)
 
-      doc.setFontSize(11)
-      doc.setFont('helvetica', 'bold')
-      doc.text('DATOS DE LA OPERACIÓN', 15, 92)
-      doc.line(15, 94, 195, 94)
+      const imgData   = canvas.toDataURL('image/jpeg', 0.92)
+      const pdf       = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
+      const pageW     = pdf.internal.pageSize.getWidth()
+      const pageH     = pdf.internal.pageSize.getHeight()
+      const imgW      = pageW
+      const imgH      = (canvas.height * pageW) / canvas.width
 
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      const montoStr = parseFloat(form.amount_usd).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      doc.text(`Monto USD:        $${montoStr}`, 15, 102)
-      doc.text(`Tarjeta crédito:  ${contract.tarjeta_credito}`, 15, 109)
+      // Si el contenido es más alto que una página, agregar páginas extra
+      let yOffset = 0
+      while (yOffset < imgH) {
+        if (yOffset > 0) pdf.addPage()
+        pdf.addImage(imgData, 'JPEG', 0, -yOffset, imgW, imgH)
+        yOffset += pageH
+      }
 
-      doc.text('_______________________________', 15, 140)
-      doc.text('Firma del cliente', 15, 147)
+      const pdfBlob = pdf.output('blob')
 
-      const pdfBlob = doc.output('blob')
-
-      // 3. Cliente sube PDF a Supabase Storage
-      const supabase   = createClient()
-      const pdfPath    = `${result.folder}/${result.fileName}.pdf`
+      // 3. Sube PDF a Supabase Storage
+      const supabase = createClient()
+      const pdfPath  = `${result.folder}/${result.fileName}.pdf`
       const { error: pdfUpErr } = await supabase.storage
         .from('contratos')
         .upload(pdfPath, pdfBlob, { contentType: 'application/pdf', upsert: true })
@@ -284,8 +300,8 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
       if (pdfUpErr) { setError(`Error subiendo PDF: ${pdfUpErr.message}`); setContractBusy(false); return }
 
       const { data: pdfData } = supabase.storage.from('contratos').getPublicUrl(pdfPath)
-
       setContractDone({ docxUrl: result.docxUrl, pdfUrl: pdfData.publicUrl })
+
     } catch (e: unknown) {
       setError(`Error inesperado: ${e instanceof Error ? e.message : String(e)}`)
     }

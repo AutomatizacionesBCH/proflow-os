@@ -15,7 +15,7 @@ export type ContractInput = {
 }
 
 export type ContractResult =
-  | { success: true; docxUrl: string; folder: string; fileName: string }
+  | { success: true; docxUrl: string; htmlContent: string; folder: string; fileName: string }
   | { success: false; error: string }
 
 export async function generateContract(input: ContractInput): Promise<ContractResult> {
@@ -39,7 +39,7 @@ export async function generateContract(input: ContractInput): Promise<ContractRe
     const fechaUsa = `${mm}/${dd}/${now.getFullYear()}`
     const montoStr = op.amount_usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-    // ── Generate DOCX ────────────────────────────────────────────────────────
+    // ── Generate filled DOCX ─────────────────────────────────────────────────
     const templatePath = path.join(process.cwd(), 'public', 'contrato_template.docx')
     if (!fs.existsSync(templatePath)) {
       return { success: false, error: 'Template no encontrado en /public/contrato_template.docx' }
@@ -75,6 +75,17 @@ export async function generateContract(input: ContractInput): Promise<ContractRe
       return { success: false, error: `Error procesando template Word: ${e instanceof Error ? e.message : String(e)}` }
     }
 
+    // ── Convert filled DOCX → HTML (para renderizar como PDF en el cliente) ──
+    let htmlContent = ''
+    try {
+      const mammoth = await import('mammoth')
+      const result  = await mammoth.convertToHtml({ buffer: docxBuffer })
+      htmlContent   = result.value
+    } catch (e: unknown) {
+      // Si mammoth falla, el PDF no se puede generar desde el Word — seguimos sin HTML
+      htmlContent = ''
+    }
+
     // ── Upload DOCX ──────────────────────────────────────────────────────────
     const safeName = input.cliente_nombre.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 40)
     const dateStr  = now.toISOString().split('T')[0]
@@ -100,9 +111,7 @@ export async function generateContract(input: ContractInput): Promise<ContractRe
       .eq('id', input.operation_id)
 
     revalidatePath('/operaciones')
-
-    // El PDF lo genera el cliente (browser) con jsPDF para evitar dependencias de fuentes en el servidor
-    return { success: true, docxUrl: docxData.publicUrl, folder, fileName }
+    return { success: true, docxUrl: docxData.publicUrl, htmlContent, folder, fileName }
 
   } catch (err: unknown) {
     return { success: false, error: `Error inesperado: ${err instanceof Error ? err.message : String(err)}` }

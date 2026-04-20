@@ -60,14 +60,18 @@ export async function generateContract(input: ContractInput): Promise<ContractRe
       })
 
       doc.render({
-        FECHA_CHI:       fechaChi,
-        FECHA_USA:       fechaUsa,
-        NOMBRE_COMPLETO: input.cliente_nombre,
-        RUT:             input.cliente_rut,
-        CIUDAD:          input.ciudad,
-        DIRECCION:       input.direccion,
-        MONTO_USD:       montoStr,
-        TARJETACRE:      input.tarjeta_credito,
+        'FECHA CHI':       fechaChi,
+        'FECHA USA':       fechaUsa,
+        'FECHA_CHI':       fechaChi,
+        'FECHA_USA':       fechaUsa,
+        'NOMBRE COMPLETO': input.cliente_nombre,
+        'NOMBRE_COMPLETO': input.cliente_nombre,
+        'RUT':             input.cliente_rut,
+        'CIUDAD':          input.ciudad,
+        'DIRECCION':       input.direccion,
+        'MONTO USD':       montoStr,
+        'MONTO_USD':       montoStr,
+        'TARJETACRE':      input.tarjeta_credito,
       })
 
       docxBuffer = doc.getZip().generate({ type: 'nodebuffer', compression: 'DEFLATE' }) as Buffer

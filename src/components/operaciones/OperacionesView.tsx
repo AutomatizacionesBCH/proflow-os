@@ -154,7 +154,7 @@ export function OperacionesView({ initialOperations }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
-                {['Fecha', 'Cliente', 'Empresa', 'Procesador', 'Monto USD', 'TC', 'Payout%', 'Bruto CLP', 'Utilidad CLP', 'Margen', 'Estado', 'Acciones'].map(h => (
+                {['Fecha', 'Cliente', 'Empresa', 'Procesador', 'Monto USD', 'TC', 'Payout%', 'Bruto CLP', 'Pago Cliente', 'Utilidad CLP', 'Margen', 'Estado', 'Acciones'].map(h => (
                   <th
                     key={h}
                     className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap"
@@ -167,7 +167,7 @@ export function OperacionesView({ initialOperations }: Props) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-16 text-center">
+                  <td colSpan={13} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center">
                         <Filter className="w-4 h-4 text-slate-600" />
@@ -244,6 +244,9 @@ function OperacionRow({
       </td>
       <td className="py-3 px-4 font-mono text-slate-400 text-xs">{formatPct(op.client_payout_pct, 1)}</td>
       <td className="py-3 px-4 font-mono text-slate-300 text-xs whitespace-nowrap">{formatCLP(op.gross_clp)}</td>
+      <td className="py-3 px-4 font-mono text-slate-200 text-xs whitespace-nowrap">
+        {op.amount_clp_paid != null ? formatCLP(op.amount_clp_paid) : '—'}
+      </td>
       <td className="py-3 px-4 font-mono whitespace-nowrap">
         {op.profit_clp != null ? (
           <span className={op.profit_clp >= 0 ? 'text-green-400' : 'text-red-400'}>

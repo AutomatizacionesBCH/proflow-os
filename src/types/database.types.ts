@@ -199,6 +199,44 @@ export interface Database {
         }
         Relationships: []
       }
+      leads: {
+        Row: {
+          id: string
+          full_name: string
+          phone: string | null
+          source_channel: string | null
+          campaign_name: string | null
+          status: 'nuevo' | 'contactado' | 'en_seguimiento' | 'convertido' | 'perdido'
+          converted_to_client: boolean
+          client_id: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          full_name: string
+          phone?: string | null
+          source_channel?: string | null
+          campaign_name?: string | null
+          status?: 'nuevo' | 'contactado' | 'en_seguimiento' | 'convertido' | 'perdido'
+          converted_to_client?: boolean
+          client_id?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          full_name?: string
+          phone?: string | null
+          source_channel?: string | null
+          campaign_name?: string | null
+          status?: 'nuevo' | 'contactado' | 'en_seguimiento' | 'convertido' | 'perdido'
+          converted_to_client?: boolean
+          client_id?: string | null
+          notes?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

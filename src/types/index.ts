@@ -81,9 +81,18 @@ export type CashPosition = {
   created_at: string
 }
 
-export type Lead = BaseEntity & {
-  nombre: string
-  empresa: string
-  valor_estimado: number
-  etapa: 'nuevo' | 'contactado' | 'propuesta' | 'cerrado'
+export type LeadStatus = 'nuevo' | 'contactado' | 'en_seguimiento' | 'convertido' | 'perdido'
+export type LeadChannel = 'Meta' | 'TikTok' | 'LinkedIn' | 'Twitter/X' | 'referido' | 'otro'
+
+export type Lead = {
+  id: string
+  full_name: string
+  phone: string | null
+  source_channel: LeadChannel | null
+  campaign_name: string | null
+  status: LeadStatus
+  converted_to_client: boolean
+  client_id: string | null
+  notes: string | null
+  created_at: string
 }

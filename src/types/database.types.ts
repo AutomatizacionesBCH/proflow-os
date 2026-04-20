@@ -176,6 +176,29 @@ export interface Database {
         }
         Relationships: []
       }
+      cash_positions: {
+        Row: {
+          id: string
+          date: string
+          available_clp: number
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          date: string
+          available_clp: number
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          date?: string
+          available_clp?: number
+          notes?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

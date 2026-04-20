@@ -73,6 +73,14 @@ export type Processor = {
   created_at: string
 }
 
+export type CashPosition = {
+  id: string
+  date: string
+  available_clp: number
+  notes: string | null
+  created_at: string
+}
+
 export type Lead = BaseEntity & {
   nombre: string
   empresa: string

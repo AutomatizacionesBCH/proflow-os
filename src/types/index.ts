@@ -49,9 +49,14 @@ export type Cliente = {
   created_at: string
 }
 
+export type EmpresaStatus = 'activo' | 'pausado' | 'en_riesgo'
+
 export type Company = {
   id: string
   name: string
+  legal_name: string | null
+  status: EmpresaStatus | null
+  notes: string | null
   created_at: string
 }
 

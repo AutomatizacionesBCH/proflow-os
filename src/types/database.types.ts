@@ -122,16 +122,25 @@ export interface Database {
         Row: {
           id: string
           name: string
+          legal_name: string | null
+          status: 'activo' | 'pausado' | 'en_riesgo' | null
+          notes: string | null
           created_at: string
         }
         Insert: {
           id?: string
           name: string
+          legal_name?: string | null
+          status?: 'activo' | 'pausado' | 'en_riesgo' | null
+          notes?: string | null
           created_at?: string
         }
         Update: {
           id?: string
           name?: string
+          legal_name?: string | null
+          status?: 'activo' | 'pausado' | 'en_riesgo' | null
+          notes?: string | null
         }
         Relationships: []
       }

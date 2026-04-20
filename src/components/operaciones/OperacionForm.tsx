@@ -166,6 +166,11 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
   const [contractBusy, setContractBusy] = useState(false)
   const [contractDone, setContractDone] = useState<{ docxUrl: string; pdfUrl: string } | null>(null)
 
+  // ID del cliente disponible para subir archivos (antes o después de guardar)
+  const uploadClientId =
+    resolvedClientId ??
+    (clienteLookup.status === 'found' && clienteLookup.found ? clienteLookup.found.id : null)
+
   const n = (v: string) => parseFloat(v) || 0
 
   // Auto-suggest payout %
@@ -326,7 +331,7 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
 
   async function handleDocUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
-    if (!files.length || !resolvedClientId) return
+    if (!files.length || !uploadClientId) return
     setDocError(null)
     setDocUploading(true)
 
@@ -340,7 +345,7 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
         continue
       }
       const safeName = file.name.replace(/[^a-zA-Z0-9._\-]/g, '_')
-      const path     = `clientes/${resolvedClientId}/${Date.now()}_${safeName}`
+      const path     = `clientes/${uploadClientId}/${Date.now()}_${safeName}`
       const { error: upErr } = await supabase.storage
         .from('documentos-clientes')
         .upload(path, file, { upsert: false })
@@ -369,7 +374,7 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
     else onClose()
   }
 
-  const showDocUpload = savedOk && resolvedClientId !== null
+  const showDocUpload = !editing
 
   return (
     <div className="fixed inset-0 z-50 flex">
@@ -577,60 +582,68 @@ export function OperacionForm({ onClose, onSuccess, editing }: Props) {
                   Documentos
                 </h3>
 
-                {docError && (
-                  <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
-                    <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                    {docError}
-                  </div>
-                )}
-
-                {uploadedDocs.length > 0 && (
-                  <div className="border border-slate-800 rounded-lg divide-y divide-slate-800/60">
-                    {uploadedDocs.map(doc => (
-                      <div key={doc.path} className="flex items-center gap-3 px-4 py-2.5">
-                        <div className="w-8 h-8 bg-slate-800 rounded border border-slate-700 flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-3.5 h-3.5 text-slate-500" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-slate-300 truncate">{doc.displayName}</p>
-                          <p className="text-xs text-slate-600 font-mono">{formatBytes(doc.size)}</p>
-                        </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <a href={doc.url} target="_blank" rel="noreferrer" download
-                            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors">
-                            <Download className="w-3.5 h-3.5" />
-                          </a>
-                          <button type="button" onClick={() => handleDocDelete(doc)}
-                            className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                {!uploadClientId ? (
+                  <p className="text-xs text-slate-600 italic">
+                    Ingresa el RUT del cliente para habilitar la subida de documentos.
+                  </p>
+                ) : (
+                  <>
+                    {docError && (
+                      <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-md px-3 py-2">
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                        {docError}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    )}
 
-                <label className={cn(
-                  'flex items-center gap-2 w-fit px-4 py-2 text-xs font-medium rounded-md cursor-pointer transition-colors border',
-                  docUploading
-                    ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
-                    : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600 hover:text-slate-100'
-                )}>
-                  {docUploading
-                    ? <><span className="w-3 h-3 border-2 border-slate-600 border-t-slate-400 rounded-full animate-spin" />Subiendo...</>
-                    : <><Upload className="w-3 h-3" />Subir documento</>
-                  }
-                  <input
-                    ref={docFileRef}
-                    type="file"
-                    accept=".jpg,.jpeg,.png,.pdf,.docx"
-                    multiple
-                    className="hidden"
-                    onChange={handleDocUpload}
-                    disabled={docUploading}
-                  />
-                </label>
-                <p className="text-xs text-slate-600">JPG, PNG, PDF, Word — máx. 10 MB por archivo</p>
+                    {uploadedDocs.length > 0 && (
+                      <div className="border border-slate-800 rounded-lg divide-y divide-slate-800/60">
+                        {uploadedDocs.map(doc => (
+                          <div key={doc.path} className="flex items-center gap-3 px-4 py-2.5">
+                            <div className="w-8 h-8 bg-slate-800 rounded border border-slate-700 flex items-center justify-center flex-shrink-0">
+                              <FileText className="w-3.5 h-3.5 text-slate-500" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-slate-300 truncate">{doc.displayName}</p>
+                              <p className="text-xs text-slate-600 font-mono">{formatBytes(doc.size)}</p>
+                            </div>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <a href={doc.url} target="_blank" rel="noreferrer" download
+                                className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors">
+                                <Download className="w-3.5 h-3.5" />
+                              </a>
+                              <button type="button" onClick={() => handleDocDelete(doc)}
+                                className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <label className={cn(
+                      'flex items-center gap-2 w-fit px-4 py-2 text-xs font-medium rounded-md cursor-pointer transition-colors border',
+                      docUploading
+                        ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed'
+                        : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600 hover:text-slate-100'
+                    )}>
+                      {docUploading
+                        ? <><span className="w-3 h-3 border-2 border-slate-600 border-t-slate-400 rounded-full animate-spin" />Subiendo...</>
+                        : <><Upload className="w-3 h-3" />Subir documento</>
+                      }
+                      <input
+                        ref={docFileRef}
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.pdf,.docx"
+                        multiple
+                        className="hidden"
+                        onChange={handleDocUpload}
+                        disabled={docUploading}
+                      />
+                    </label>
+                    <p className="text-xs text-slate-600">JPG, PNG, PDF, Word — máx. 10 MB por archivo</p>
+                  </>
+                )}
               </div>
             )}
 

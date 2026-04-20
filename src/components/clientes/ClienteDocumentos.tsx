@@ -36,8 +36,24 @@ function formatDate(iso: string | null) {
 }
 
 function displayName(raw: string) {
-  // strip leading timestamp prefix (e.g. "1714000000000_file.pdf" → "file.pdf")
   return raw.replace(/^\d{10,}_/, '')
+}
+
+function groupByDate(files: FileRow[]): Map<string, FileRow[]> {
+  const sorted = [...files].sort((a, b) => {
+    const da = a.date ? new Date(a.date).getTime() : 0
+    const db = b.date ? new Date(b.date).getTime() : 0
+    return db - da
+  })
+  const groups = new Map<string, FileRow[]>()
+  for (const f of sorted) {
+    const key = f.date
+      ? new Date(f.date).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      : 'Sin fecha'
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(f)
+  }
+  return groups
 }
 
 export function ClienteDocumentos({
@@ -200,13 +216,20 @@ export function ClienteDocumentos({
               <p className="px-5 py-2 text-xs font-medium text-slate-600 uppercase tracking-widest bg-slate-900/80 border-b border-slate-800/50">
                 Documentos generales ({docs.length})
               </p>
-              {docs.map(f => (
-                <FileItem
-                  key={f.key}
-                  file={f}
-                  onPreview={f.isImage ? () => setPreview(f.url) : undefined}
-                  onDelete={() => handleDelete(f)}
-                />
+              {Array.from(groupByDate(docs)).map(([date, items]) => (
+                <div key={date}>
+                  <p className="px-5 py-1.5 text-xs text-slate-600 font-mono bg-slate-950/40 border-b border-slate-800/30">
+                    {date}
+                  </p>
+                  {items.map(f => (
+                    <FileItem
+                      key={f.key}
+                      file={f}
+                      onPreview={f.isImage ? () => setPreview(f.url) : undefined}
+                      onDelete={() => handleDelete(f)}
+                    />
+                  ))}
+                </div>
               ))}
             </div>
           )}
@@ -216,8 +239,15 @@ export function ClienteDocumentos({
               <p className="px-5 py-2 text-xs font-medium text-slate-600 uppercase tracking-widest bg-slate-900/80 border-b border-slate-800/50">
                 Contratos generados ({contracts.length})
               </p>
-              {contracts.map(f => (
-                <FileItem key={f.key} file={f} readonly />
+              {Array.from(groupByDate(contracts)).map(([date, items]) => (
+                <div key={date}>
+                  <p className="px-5 py-1.5 text-xs text-slate-600 font-mono bg-slate-950/40 border-b border-slate-800/30">
+                    {date}
+                  </p>
+                  {items.map(f => (
+                    <FileItem key={f.key} file={f} readonly />
+                  ))}
+                </div>
               ))}
             </div>
           )}

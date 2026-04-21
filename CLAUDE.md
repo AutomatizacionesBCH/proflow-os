@@ -197,6 +197,22 @@ validateRut('17590573-1')            // → true
 - Mostrar al usuario CON puntos: `17.590.573-1`
 - La búsqueda normaliza antes de comparar
 
+### Lookup de nombres via mapas (Operaciones)
+`client_id`, `company_id`, `processor_id` son `text` sin FK — PostgREST no hace joins.
+El patrón es cargar las tablas relacionadas en el Server Component y pasar mapas como props:
+```tsx
+// page.tsx
+const [opsRes, clientsRes, companiesRes, processorsRes] = await Promise.all([...])
+const clientMap    = Object.fromEntries(clientsRes.data.map(c => [c.id, c.full_name]))
+const companyMap   = Object.fromEntries(companiesRes.data.map(c => [c.id, c.name]))
+const processorMap = Object.fromEntries(processorsRes.data.map(p => [p.id, p.name]))
+
+// En el componente de fila:
+clientMap[op.client_id] ?? op.client_id
+op.company_id ? (companyMap[op.company_id] ?? op.company_id) : '—'
+op.processor_id ? (processorMap[op.processor_id] ?? op.fx_source ?? '—') : (op.fx_source ?? '—')
+```
+
 ### Supabase Storage (client-side)
 ```ts
 import { createClient } from '@/lib/supabase/client'
@@ -235,6 +251,8 @@ Valores monetarios: siempre `font-mono`. Fechas: `es-CL` locale.
 
 ## Supabase — tablas y migraciones
 
+El esquema consolidado está en `supabase/schema_completo.sql` (usar para migrar a nuevo proyecto).
+
 | Migración | Archivo | Descripción |
 |---|---|---|
 | 001 | `001_create_operations.sql` | Tabla `operations` completa |
@@ -244,11 +262,14 @@ Valores monetarios: siempre `font-mono`. Fechas: `es-CL` locale.
 | 005 | `005_create_cash_positions.sql` | Tabla `cash_positions` |
 | 006 | `006_create_leads.sql` | Tabla `leads` |
 | 007 | `007_create_marketing_spend.sql` | Tabla `marketing_spend` |
+| 008 | `008_alter_operations_add_contract_and_storage.sql` | Agrega `contract_url` a `operations`, crea buckets Storage |
 
 ### `operations`
-`client_id` (uuid FK → clients.id), `company_id` (uuid FK), `processor_id` (uuid FK), `operation_date`, `amount_usd`, `fx_rate_used`, `client_payout_pct`, fees (`processor_fee_pct`, `loan_fee_pct`, `payout_fee_pct`, `wire_fee_usd`, `receive_fee_usd`), calculados (`gross_clp`, `amount_clp_paid`, `profit_clp`), `status` (pendiente/en_proceso/completada/anulada), `contract_url`.
+`client_id` (**text**, sin FK — ver nota abajo), `company_id` (text), `processor_id` (text), `operation_date`, `amount_usd`, `fx_rate_used`, `client_payout_pct`, fees (`processor_fee_pct`, `loan_fee_pct`, `payout_fee_pct`, `wire_fee_usd`, `receive_fee_usd`), calculados (`gross_clp`, `amount_clp_paid`, `profit_clp`), `status` (pendiente/en_proceso/completada/anulada), `contract_url`.
 Lógica de cálculo centralizada en `src/lib/utils.ts → calcOperation()`.
 Al crear una operación nueva se busca el cliente por RUT (`ensureCliente`): si no existe se crea automáticamente.
+
+> **Nota importante:** `client_id`, `company_id` y `processor_id` son columnas `text` sin foreign key constraint. PostgREST no puede hacer joins automáticos. Por eso `operaciones/page.tsx` carga las 4 tablas en paralelo y pasa mapas `{uuid → nombre}` como props a `OperacionesView`.
 
 ### `companies`
 `id`, `name`, `legal_name`, `status` (activo/pausado/en_riesgo), `notes`, `created_at`.
@@ -274,6 +295,7 @@ Al crear una operación nueva se busca el cliente por RUT (`ensureCliente`): si 
 |---|---|---|
 | `documentos-clientes` | Público | `clientes/[client_id]/[timestamp]_[nombre]` |
 | `contratos` | Público | `contratos/[operation_id]/[nombre].docx` y `.pdf` |
+| `documentos-operaciones` | Público | reservado para documentos adjuntos por operación |
 
 - Límite por archivo: 10 MB
 - Formatos permitidos: JPG, PNG, PDF, Word (.docx)
@@ -315,6 +337,16 @@ type MarketingSpend  { id, date, channel, amount_clp, notes, created_at }
 | Leads | ✅ Completo | `leads` | Pipeline + filtros dual + convertir a cliente |
 | Marketing | ✅ Completo | `marketing_spend` | Gasto por canal + barras visuales + historial |
 | Documentos | ✅ Completo | Storage | Gestión de archivos por cliente, agrupados por fecha, con contratos integrados |
+
+## Scripts de datos (`scripts/`)
+
+| Script | Descripción |
+|---|---|
+| `importar_operaciones.py` | Importa operaciones históricas desde Excel (versión original con dedup) |
+| `fix_historicos.py` | Borra ops con `fx_rate_used=0` y re-importa 1384 filas del Excel asignando empresa y procesadores reales |
+| `sync_telefonos.py` | Sincroniza teléfonos desde `CLIENTES LCC - BASE LIMPIA.xlsx` haciendo match por RUT y luego por nombre |
+
+Todos leen credenciales de `.env.local`. Ver `MIGRACION.md` para el orden de ejecución al migrar.
 
 ## Próximos pasos planeados
 

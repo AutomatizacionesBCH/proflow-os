@@ -12,6 +12,7 @@ import {
   Zap,
   Building2,
 } from 'lucide-react'
+import { TableScroll } from '@/components/ui/TableScroll'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -161,7 +162,7 @@ export default async function DashboardPage() {
           {recentOps.length === 0 ? (
             <EmptyState message="Sin operaciones registradas" />
           ) : (
-            <div className="table-scroll">
+            <TableScroll>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-800">
@@ -197,7 +198,7 @@ export default async function DashboardPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </TableScroll>
           )}
         </div>
 

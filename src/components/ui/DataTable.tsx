@@ -1,3 +1,5 @@
+import { TableScroll } from '@/components/ui/TableScroll'
+
 type Column<T> = {
   key: keyof T | string
   header: string
@@ -17,7 +19,7 @@ export function DataTable<T extends Record<string, unknown>>({
   emptyMessage = 'Sin registros',
 }: DataTableProps<T>) {
   return (
-    <div className="table-scroll">
+    <TableScroll>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-800">
@@ -60,6 +62,6 @@ export function DataTable<T extends Record<string, unknown>>({
           )}
         </tbody>
       </table>
-    </div>
+    </TableScroll>
   )
 }

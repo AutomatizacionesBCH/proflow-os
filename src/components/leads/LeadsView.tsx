@@ -10,6 +10,7 @@ import { LeadChannelBadge } from './LeadChannelBadge'
 import { LeadForm } from './LeadForm'
 import { convertLead } from '@/app/leads/actions'
 import { KpiBox } from '@/components/ui/KpiBox'
+import { TableScroll } from '@/components/ui/TableScroll'
 
 const STATUS_FILTERS: { value: LeadStatus | 'todos'; label: string }[] = [
   { value: 'todos',          label: 'Todos' },
@@ -172,7 +173,7 @@ export function LeadsView({ initialLeads }: Props) {
 
       {/* Tabla */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="table-scroll">
+        <TableScroll>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
@@ -260,7 +261,7 @@ export function LeadsView({ initialLeads }: Props) {
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
 
         {filtered.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-800">

@@ -9,6 +9,7 @@ import { ClienteTagBadge } from './ClienteTagBadge'
 import { ClienteForm } from './ClienteForm'
 import { ClienteDocumentos } from './ClienteDocumentos'
 import { OperacionStatusBadge } from '@/components/operaciones/OperacionStatusBadge'
+import { TableScroll } from '@/components/ui/TableScroll'
 
 type Props = {
   cliente: Cliente
@@ -171,7 +172,7 @@ export function ClienteDetalle({ cliente, operations, companies, processors }: P
                 <p className="text-sm text-slate-500">Sin operaciones registradas para este cliente.</p>
               </div>
             ) : (
-              <div className="table-scroll">
+              <TableScroll>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-800">
@@ -217,7 +218,7 @@ export function ClienteDetalle({ cliente, operations, companies, processors }: P
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </TableScroll>
             )}
           </div>
         </div>

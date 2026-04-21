@@ -10,6 +10,7 @@ import { OperacionForm } from './OperacionForm'
 import { OperacionDocumentos } from './OperacionDocumentos'
 import { updateOperationStatus, deleteOperation } from '@/app/operaciones/actions'
 import { KpiBox } from '@/components/ui/KpiBox'
+import { TableScroll } from '@/components/ui/TableScroll'
 
 const ALL_STATUSES: { value: OperationStatus | 'all'; label: string }[] = [
   { value: 'all',        label: 'Todas' },
@@ -216,7 +217,7 @@ export function OperacionesView({ initialOperations, clientMap, companyMap, proc
 
       {/* ── Tabla ── */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="table-scroll">
+        <TableScroll>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
@@ -269,7 +270,7 @@ export function OperacionesView({ initialOperations, clientMap, companyMap, proc
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
 
         {filtered.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-800 flex items-center justify-between">

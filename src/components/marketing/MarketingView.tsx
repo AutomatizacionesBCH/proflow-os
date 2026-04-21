@@ -8,6 +8,7 @@ import type { MarketingSpend, MarketingChannel } from '@/types'
 import { MarketingForm } from './MarketingForm'
 import { deleteMarketingSpend } from '@/app/marketing/actions'
 import { KpiBox } from '@/components/ui/KpiBox'
+import { TableScroll } from '@/components/ui/TableScroll'
 
 const CHANNEL_COLORS: Record<MarketingChannel, { bar: string; text: string; border: string }> = {
   'Meta':      { bar: 'bg-blue-500',   text: 'text-blue-400',   border: 'border-blue-500/20' },
@@ -148,7 +149,7 @@ export function MarketingView({ initialSpends }: Props) {
         <div className="px-5 py-4 border-b border-slate-800">
           <p className="text-sm font-semibold text-slate-100">Historial de gastos</p>
         </div>
-        <div className="table-scroll">
+        <TableScroll>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
@@ -219,7 +220,7 @@ export function MarketingView({ initialSpends }: Props) {
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
         {initialSpends.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-800">
             <p className="text-xs text-slate-500">

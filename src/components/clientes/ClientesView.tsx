@@ -9,6 +9,7 @@ import { ClienteTagBadge } from './ClienteTagBadge'
 import { ClienteForm } from './ClienteForm'
 import { ClienteDocumentos } from './ClienteDocumentos'
 import { KpiBox } from '@/components/ui/KpiBox'
+import { TableScroll } from '@/components/ui/TableScroll'
 
 const ALL_TAGS: (ClientTag | 'todos')[] = ['todos', 'VIP', 'frecuente', 'nuevo', 'riesgo', 'pausado']
 
@@ -173,7 +174,7 @@ export function ClientesView({ initialClientes, companies, processors }: Props) 
 
       {/* Tabla */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="table-scroll">
+        <TableScroll>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
@@ -260,7 +261,7 @@ export function ClientesView({ initialClientes, companies, processors }: Props) 
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
 
         {filtered.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-800">

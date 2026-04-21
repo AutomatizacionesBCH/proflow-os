@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { formatCLP, formatUSD } from '@/lib/utils'
 import type { CashPosition } from '@/types'
 import { CajaForm } from './CajaForm'
+import { TableScroll } from '@/components/ui/TableScroll'
 
 // TC promedio estimado para el cálculo de capacidad operativa
 const AVG_TC = 950
@@ -158,7 +159,7 @@ export function CajaView({ initialPositions }: Props) {
 
       {/* Tabla histórica */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="table-scroll">
+        <TableScroll>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
@@ -238,7 +239,7 @@ export function CajaView({ initialPositions }: Props) {
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
 
         {initialPositions.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-800">

@@ -8,6 +8,7 @@ import type { Processor, ProcessorStatus, Company } from '@/types'
 import { ProcesadorStatusBadge } from './ProcesadorStatusBadge'
 import { ProcesadorForm } from './ProcesadorForm'
 import { KpiBox } from '@/components/ui/KpiBox'
+import { TableScroll } from '@/components/ui/TableScroll'
 
 const STATUS_FILTERS: { value: ProcessorStatus | 'todos'; label: string }[] = [
   { value: 'todos',     label: 'Todos' },
@@ -144,7 +145,7 @@ export function ProcesadoresView({ initialProcesadores, companies, dailyUsage }:
 
       {/* Tabla */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="table-scroll">
+        <TableScroll>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
@@ -250,7 +251,7 @@ export function ProcesadoresView({ initialProcesadores, companies, dailyUsage }:
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
 
         {filtered.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-800">

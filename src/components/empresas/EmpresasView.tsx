@@ -8,6 +8,7 @@ import type { Company, EmpresaStatus } from '@/types'
 import { EmpresaStatusBadge } from './EmpresaStatusBadge'
 import { EmpresaForm } from './EmpresaForm'
 import { KpiBox } from '@/components/ui/KpiBox'
+import { TableScroll } from '@/components/ui/TableScroll'
 
 const STATUS_FILTERS: { value: EmpresaStatus | 'todos'; label: string }[] = [
   { value: 'todos',     label: 'Todas' },
@@ -131,7 +132,7 @@ export function EmpresasView({ initialEmpresas }: Props) {
 
       {/* Tabla */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="table-scroll">
+        <TableScroll>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
@@ -200,7 +201,7 @@ export function EmpresasView({ initialEmpresas }: Props) {
               )}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
 
         {filtered.length > 0 && (
           <div className="px-4 py-3 border-t border-slate-800">

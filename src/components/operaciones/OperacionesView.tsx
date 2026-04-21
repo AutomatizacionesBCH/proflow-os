@@ -38,12 +38,19 @@ export function OperacionesView({ initialOperations, clientMap, companyMap, proc
   const [docsTarget, setDocsTarget] = useState<string | null>(null)
   const [search, setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState<OperationStatus | 'all'>('all')
+  const [processorFilter, setProcessorFilter] = useState<string>('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo]     = useState('')
+
+  const processorOptions = useMemo(() => {
+    const ids = [...new Set(initialOperations.map(op => op.processor_id).filter(Boolean))] as string[]
+    return ids.map(id => ({ id, name: processorMap[id] ?? id })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [initialOperations, processorMap])
 
   const filtered = useMemo(() => {
     return initialOperations.filter(op => {
       if (statusFilter !== 'all' && op.status !== statusFilter) return false
+      if (processorFilter !== 'all' && op.processor_id !== processorFilter) return false
       if (dateFrom && op.operation_date < dateFrom) return false
       if (dateTo   && op.operation_date > dateTo)   return false
       if (search) {
@@ -213,6 +220,41 @@ export function OperacionesView({ initialOperations, clientMap, companyMap, proc
             </button>
           ))}
         </div>
+
+        {/* Filtros de procesador */}
+        {processorOptions.length > 0 && (
+          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+            <span className="w-3 h-3 mr-1" />
+            <button
+              onClick={() => setProcessorFilter('all')}
+              className={cn(
+                'px-3 py-1 text-xs rounded-md border transition-colors',
+                processorFilter === 'all'
+                  ? 'bg-purple-600/20 text-purple-400 border-purple-500/30'
+                  : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-300'
+              )}
+            >
+              Todos los procesadores
+            </button>
+            {processorOptions.map(p => (
+              <button
+                key={p.id}
+                onClick={() => setProcessorFilter(p.id)}
+                className={cn(
+                  'px-3 py-1 text-xs rounded-md border transition-colors',
+                  processorFilter === p.id
+                    ? 'bg-purple-600/20 text-purple-400 border-purple-500/30'
+                    : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-300'
+                )}
+              >
+                {p.name}
+                <span className="ml-1.5 text-slate-500">
+                  ({initialOperations.filter(op => op.processor_id === p.id).length})
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Tabla ── */}

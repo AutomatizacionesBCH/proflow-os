@@ -35,15 +35,8 @@ export function TableScroll({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <div
-        ref={ref}
-        className="overflow-x-scroll [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-      >
-        {children}
-      </div>
-
       {needsScroll && (
-        <div className="flex items-center justify-between px-4 py-2 border-t border-slate-800 bg-slate-950/40">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-950/40">
           <button
             onClick={() => scroll('left')}
             disabled={!canLeft}
@@ -63,6 +56,13 @@ export function TableScroll({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       )}
+
+      <div
+        ref={ref}
+        className="overflow-x-scroll [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {children}
+      </div>
     </>
   )
 }

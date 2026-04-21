@@ -14,8 +14,9 @@ export default async function OperacionesPage() {
       .from('operations')
       .select('*')
       .order('operation_date', { ascending: false })
-      .order('created_at', { ascending: false }),
-    supabase.from('clients').select('id, full_name'),
+      .order('created_at', { ascending: false })
+      .limit(10000),
+    supabase.from('clients').select('id, full_name').limit(10000),
     supabase.from('companies').select('id, name'),
     supabase.from('processors').select('id, name'),
   ])

@@ -10,7 +10,7 @@ export default async function ClientesPage() {
   const supabase = await createClient()
 
   const [clientesRes, companiesRes, processorsRes] = await Promise.all([
-    supabase.from('clients').select('*').order('created_at', { ascending: false }),
+    supabase.from('clients').select('*').order('created_at', { ascending: false }).limit(10000),
     supabase.from('companies').select('id, name, created_at').order('name'),
     supabase.from('processors').select('id, name, type, created_at').order('name'),
   ])

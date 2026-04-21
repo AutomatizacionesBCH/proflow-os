@@ -48,7 +48,8 @@ export default async function DashboardPage() {
     supabase
       .from('operations')
       .select('operation_date, profit_clp, amount_usd, status')
-      .neq('status', 'anulada'),
+      .neq('status', 'anulada')
+      .limit(10000),
     supabase
       .from('operations')
       .select('id, client_id, operation_date, amount_usd, profit_clp, status')
@@ -59,7 +60,8 @@ export default async function DashboardPage() {
       .select('id', { count: 'exact', head: true }),
     supabase
       .from('clients')
-      .select('id, full_name'),
+      .select('id, full_name')
+      .limit(10000),
     supabase
       .from('leads')
       .select('source_channel, created_at'),

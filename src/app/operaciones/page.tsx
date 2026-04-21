@@ -63,28 +63,42 @@ function isTableMissingError(msg: string) {
 export default async function OperacionesPage() {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('operations')
-    .select('*, clients(full_name), companies(name), processors(name)')
-    .order('operation_date', { ascending: false })
-    .order('created_at', { ascending: false })
+  const [opsRes, clientsRes, companiesRes, processorsRes] = await Promise.all([
+    supabase
+      .from('operations')
+      .select('*')
+      .order('operation_date', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase.from('clients').select('id, full_name'),
+    supabase.from('companies').select('id, name'),
+    supabase.from('processors').select('id, name'),
+  ])
 
-  if (error) {
+  if (opsRes.error) {
     return (
       <PageShell title="Operaciones" description="Gestión de flujos y transacciones">
         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-5">
           <p className="text-sm font-semibold text-red-400 mb-1">Error de conexión</p>
-          <p className="text-xs text-slate-500 font-mono">[{error.code}] {error.message}</p>
+          <p className="text-xs text-slate-500 font-mono">[{opsRes.error.code}] {opsRes.error.message}</p>
         </div>
       </PageShell>
     )
   }
 
-  const operations: Operation[] = (data ?? []) as Operation[]
+  const operations: Operation[] = (opsRes.data ?? []) as Operation[]
+
+  const clientMap:    Record<string, string> = Object.fromEntries((clientsRes.data    ?? []).map(c => [c.id, c.full_name]))
+  const companyMap:   Record<string, string> = Object.fromEntries((companiesRes.data  ?? []).map(c => [c.id, c.name]))
+  const processorMap: Record<string, string> = Object.fromEntries((processorsRes.data ?? []).map(p => [p.id, p.name]))
 
   return (
     <PageShell title="Operaciones" description="Gestión de flujos y transacciones">
-      <OperacionesView initialOperations={operations} />
+      <OperacionesView
+        initialOperations={operations}
+        clientMap={clientMap}
+        companyMap={companyMap}
+        processorMap={processorMap}
+      />
     </PageShell>
   )
 }

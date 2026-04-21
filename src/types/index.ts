@@ -33,10 +33,6 @@ export type Operation = {
   contract_url: string | null
   created_at: string
   updated_at: string
-  // Joined fields (optional — only present when selected with join)
-  clients?:    { full_name: string } | null
-  companies?:  { name: string } | null
-  processors?: { name: string } | null
 }
 
 export type ClientTag = 'VIP' | 'frecuente' | 'nuevo' | 'riesgo' | 'pausado'

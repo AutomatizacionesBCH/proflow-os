@@ -21,9 +21,12 @@ const ALL_STATUSES: { value: OperationStatus | 'all'; label: string }[] = [
 
 type Props = {
   initialOperations: Operation[]
+  clientMap:    Record<string, string>
+  companyMap:   Record<string, string>
+  processorMap: Record<string, string>
 }
 
-export function OperacionesView({ initialOperations }: Props) {
+export function OperacionesView({ initialOperations, clientMap, companyMap, processorMap }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -44,13 +47,13 @@ export function OperacionesView({ initialOperations }: Props) {
       if (dateTo   && op.operation_date > dateTo)   return false
       if (search) {
         const q = search.toLowerCase()
+        const clientName    = clientMap[op.client_id]?.toLowerCase() ?? ''
+        const companyName   = (op.company_id   ? companyMap[op.company_id]   : '') ?? ''
+        const processorName = (op.processor_id ? processorMap[op.processor_id] : op.fx_source ?? '') ?? ''
         if (
-          !(op.clients?.full_name?.toLowerCase().includes(q)) &&
-          !op.client_id.toLowerCase().includes(q) &&
-          !(op.companies?.name?.toLowerCase().includes(q)) &&
-          !(op.company_id?.toLowerCase().includes(q)) &&
-          !(op.processors?.name?.toLowerCase().includes(q)) &&
-          !(op.fx_source?.toLowerCase().includes(q)) &&
+          !clientName.includes(q) &&
+          !companyName.includes(q) &&
+          !processorName.includes(q) &&
           !(op.notes?.toLowerCase().includes(q))
         ) return false
       }
@@ -249,6 +252,9 @@ export function OperacionesView({ initialOperations }: Props) {
                   <OperacionRow
                     key={op.id}
                     op={op}
+                    clientMap={clientMap}
+                    companyMap={companyMap}
+                    processorMap={processorMap}
                     onStatusChange={(id, status) => {
                       startTransition(async () => {
                         await updateOperationStatus(id, status)
@@ -285,12 +291,18 @@ export function OperacionesView({ initialOperations }: Props) {
 // ─── Fila de operación con cambio de estado inline ──────────────────────────
 function OperacionRow({
   op,
+  clientMap,
+  companyMap,
+  processorMap,
   onStatusChange,
   onEdit,
   onDelete,
   onDocs,
 }: {
   op: Operation
+  clientMap:    Record<string, string>
+  companyMap:   Record<string, string>
+  processorMap: Record<string, string>
   onStatusChange: (id: string, status: OperationStatus) => void
   onEdit: (op: Operation) => void
   onDelete: (op: Operation) => void
@@ -307,9 +319,9 @@ function OperacionRow({
       <td className="py-3 px-4 text-slate-400 font-mono text-xs whitespace-nowrap">
         {new Date(op.operation_date + 'T00:00:00').toLocaleDateString('es-CL')}
       </td>
-      <td className="py-3 px-4 text-slate-200 font-medium">{op.clients?.full_name ?? op.client_id}</td>
-      <td className="py-3 px-4 text-slate-400">{op.companies?.name ?? op.company_id ?? '—'}</td>
-      <td className="py-3 px-4 text-slate-400">{op.processors?.name ?? op.fx_source ?? op.processor_id ?? '—'}</td>
+      <td className="py-3 px-4 text-slate-200 font-medium">{clientMap[op.client_id] ?? op.client_id}</td>
+      <td className="py-3 px-4 text-slate-400">{op.company_id ? (companyMap[op.company_id] ?? op.company_id) : '—'}</td>
+      <td className="py-3 px-4 text-slate-400">{op.processor_id ? (processorMap[op.processor_id] ?? op.fx_source ?? op.processor_id) : (op.fx_source ?? '—')}</td>
       <td className="py-3 px-4 font-mono text-slate-200 whitespace-nowrap">{formatUSD(op.amount_usd)}</td>
       <td className="py-3 px-4 font-mono text-slate-400 text-xs whitespace-nowrap">
         {op.fx_rate_used.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

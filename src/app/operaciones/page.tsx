@@ -65,7 +65,7 @@ export default async function OperacionesPage() {
 
   const { data, error } = await supabase
     .from('operations')
-    .select('*')
+    .select('*, clients(full_name), companies(name), processors(name)')
     .order('operation_date', { ascending: false })
     .order('created_at', { ascending: false })
 

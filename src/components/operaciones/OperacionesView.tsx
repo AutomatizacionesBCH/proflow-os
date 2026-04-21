@@ -45,9 +45,12 @@ export function OperacionesView({ initialOperations }: Props) {
       if (search) {
         const q = search.toLowerCase()
         if (
+          !(op.clients?.full_name?.toLowerCase().includes(q)) &&
           !op.client_id.toLowerCase().includes(q) &&
+          !(op.companies?.name?.toLowerCase().includes(q)) &&
           !(op.company_id?.toLowerCase().includes(q)) &&
-          !(op.processor_id?.toLowerCase().includes(q)) &&
+          !(op.processors?.name?.toLowerCase().includes(q)) &&
+          !(op.fx_source?.toLowerCase().includes(q)) &&
           !(op.notes?.toLowerCase().includes(q))
         ) return false
       }
@@ -304,9 +307,9 @@ function OperacionRow({
       <td className="py-3 px-4 text-slate-400 font-mono text-xs whitespace-nowrap">
         {new Date(op.operation_date + 'T00:00:00').toLocaleDateString('es-CL')}
       </td>
-      <td className="py-3 px-4 text-slate-200 font-medium">{op.client_id}</td>
-      <td className="py-3 px-4 text-slate-400">{op.company_id || '—'}</td>
-      <td className="py-3 px-4 text-slate-400">{op.processor_id || '—'}</td>
+      <td className="py-3 px-4 text-slate-200 font-medium">{op.clients?.full_name ?? op.client_id}</td>
+      <td className="py-3 px-4 text-slate-400">{op.companies?.name ?? op.company_id ?? '—'}</td>
+      <td className="py-3 px-4 text-slate-400">{op.processors?.name ?? op.fx_source ?? op.processor_id ?? '—'}</td>
       <td className="py-3 px-4 font-mono text-slate-200 whitespace-nowrap">{formatUSD(op.amount_usd)}</td>
       <td className="py-3 px-4 font-mono text-slate-400 text-xs whitespace-nowrap">
         {op.fx_rate_used.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

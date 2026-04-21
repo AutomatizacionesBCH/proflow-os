@@ -148,7 +148,7 @@ export function MarketingView({ initialSpends }: Props) {
         <div className="px-5 py-4 border-b border-slate-800">
           <p className="text-sm font-semibold text-slate-100">Historial de gastos</p>
         </div>
-        <div className="overflow-x-auto">
+        <div className="table-scroll">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">

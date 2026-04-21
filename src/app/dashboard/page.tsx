@@ -39,6 +39,7 @@ export default async function DashboardPage() {
     opsAllRes,
     opsRecentRes,
     clientsCountRes,
+    clientsNamesRes,
     leadsAllRes,
     cashRes,
     processorsRes,
@@ -55,6 +56,9 @@ export default async function DashboardPage() {
     supabase
       .from('clients')
       .select('id', { count: 'exact', head: true }),
+    supabase
+      .from('clients')
+      .select('id, full_name'),
     supabase
       .from('leads')
       .select('source_channel, created_at'),
@@ -80,6 +84,7 @@ export default async function DashboardPage() {
     : 0
 
   const clientesActivos = clientsCountRes.count ?? 0
+  const clientMap = Object.fromEntries((clientsNamesRes.data ?? []).map(c => [c.id, c.full_name]))
 
   const leads       = leadsAllRes.data ?? []
   const leadsDia    = leads.filter(l => l.created_at.slice(0, 10) === today).length
@@ -156,7 +161,7 @@ export default async function DashboardPage() {
           {recentOps.length === 0 ? (
             <EmptyState message="Sin operaciones registradas" />
           ) : (
-            <div className="overflow-x-auto">
+            <div className="table-scroll">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-800">
@@ -173,8 +178,8 @@ export default async function DashboardPage() {
                       <td className="py-3 px-4 text-xs font-mono text-slate-500 whitespace-nowrap">
                         {new Date(op.operation_date + 'T12:00:00').toLocaleDateString('es-CL')}
                       </td>
-                      <td className="py-3 px-4 text-sm text-slate-300 max-w-[140px]">
-                        <span className="line-clamp-1">{op.client_id || '—'}</span>
+                      <td className="py-3 px-4 text-sm text-slate-300 max-w-[160px]">
+                        <span className="line-clamp-1">{clientMap[op.client_id] ?? op.client_id}</span>
                       </td>
                       <td className="py-3 px-4 font-mono text-sm text-slate-200 whitespace-nowrap">
                         {formatUSD(op.amount_usd)}

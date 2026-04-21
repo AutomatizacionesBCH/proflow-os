@@ -216,7 +216,7 @@ export function OperacionesView({ initialOperations, clientMap, companyMap, proc
 
       {/* ── Tabla ── */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="table-scroll">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">

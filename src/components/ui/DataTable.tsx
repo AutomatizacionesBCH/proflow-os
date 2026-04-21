@@ -17,7 +17,7 @@ export function DataTable<T extends Record<string, unknown>>({
   emptyMessage = 'Sin registros',
 }: DataTableProps<T>) {
   return (
-    <div className="overflow-x-auto">
+    <div className="table-scroll">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-800">

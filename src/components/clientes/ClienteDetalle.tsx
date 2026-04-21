@@ -171,7 +171,7 @@ export function ClienteDetalle({ cliente, operations, companies, processors }: P
                 <p className="text-sm text-slate-500">Sin operaciones registradas para este cliente.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="table-scroll">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-800">

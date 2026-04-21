@@ -52,7 +52,7 @@ body {
 
 /* Scrollbar horizontal visible para contenedores de tabla */
 .table-scroll {
-  overflow-x: auto;
+  overflow-x: scroll;
   scrollbar-width: thin;
   scrollbar-color: #475569 #1e293b;
 }

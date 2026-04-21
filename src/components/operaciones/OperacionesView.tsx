@@ -67,7 +67,7 @@ export function OperacionesView({ initialOperations, clientMap, companyMap, proc
       }
       return true
     })
-  }, [initialOperations, statusFilter, dateFrom, dateTo, search])
+  }, [initialOperations, statusFilter, processorFilter, dateFrom, dateTo, search])
 
   // Stats calculadas del subconjunto filtrado
   const stats = useMemo(() => ({

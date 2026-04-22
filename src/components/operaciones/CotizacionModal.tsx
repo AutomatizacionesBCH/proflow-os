@@ -362,17 +362,18 @@ function CardRow({
   label: string; value: string; bold?: boolean; color?: string; mono?: boolean
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '10px' }}>
-      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7a75', width: '190px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+    <div style={{ display: 'flex', alignItems: 'flex-end', marginBottom: '12px' }}>
+      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7a75', width: '190px', flexShrink: 0, letterSpacing: '0.04em', textTransform: 'uppercase', paddingBottom: '6px' }}>
         {label}
       </span>
       <span style={{
+        display: 'inline-block',
         fontSize: '13px',
-        color: color ?? '#212121',
-        borderBottom: '1.5px solid #111',
-        minWidth: '160px',
-        paddingBottom: '1px',
-        fontWeight: bold ? 700 : 400,
+        color: color ?? '#111111',
+        borderBottom: '1.5px solid #555',
+        minWidth: '180px',
+        paddingBottom: '5px',
+        fontWeight: bold ? 700 : 600,
         fontFamily: mono ? 'Courier New, monospace' : 'inherit',
       }}>
         {value}

@@ -21,6 +21,7 @@ function horaEmision(d = new Date()) {
 type Props = { onClose: () => void }
 
 export function CotizacionModal({ onClose }: Props) {
+  const [cliente, setCliente]   = useState('')
   const [usd, setUsd]           = useState('')
   const [fx, setFx]             = useState('')
   const [pct, setPct]           = useState('')
@@ -41,7 +42,7 @@ export function CotizacionModal({ onClose }: Props) {
   }, [usdN, pctManual])
 
   // Si cambian los inputs después de generar, forzar re-generación
-  useEffect(() => { setImageUrl(null) }, [usd, fx, pct])
+  useEffect(() => { setImageUrl(null) }, [cliente, usd, fx, pct])
 
   const clpN = useMemo(() => Math.round(usdN * fxN * (pctN / 100)), [usdN, fxN, pctN])
   const ready = usdN > 0 && fxN > 0 && pctN > 0
@@ -111,6 +112,17 @@ export function CotizacionModal({ onClose }: Props) {
           {/* Body */}
           <div className="px-5 py-5 overflow-y-auto space-y-4">
             {/* Inputs */}
+            <div>
+              <label className={labelCls}>Nombre Cliente</label>
+              <input
+                type="text"
+                placeholder="Nombre del cliente (opcional)"
+                className={inputCls}
+                value={cliente}
+                onChange={e => setCliente(e.target.value)}
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Monto USD</label>
@@ -301,6 +313,17 @@ export function CotizacionModal({ onClose }: Props) {
 
         {/* Cuerpo — campos */}
         <div style={{ padding: '18px 28px 0' }}>
+          {/* NOMBRE CLIENTE */}
+          {cliente && (
+            <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '10px' }}>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#757575', width: '190px', letterSpacing: '0.3px' }}>
+                NOMBRE CLIENTE:
+              </span>
+              <span style={{ fontSize: '12px', color: '#212121', borderBottom: '1px solid #bbb', minWidth: '180px', paddingBottom: '1px' }}>
+                {cliente}
+              </span>
+            </div>
+          )}
           {/* FECHA COTIZACIÓN */}
           <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '10px' }}>
             <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#757575', width: '190px', letterSpacing: '0.3px' }}>

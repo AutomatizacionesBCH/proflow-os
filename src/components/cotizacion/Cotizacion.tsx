@@ -66,6 +66,13 @@ export function Cotizacion({
     return () => clearInterval(id)
   }, [])
 
+  // Set initial contentEditable values on mount
+  useEffect(() => {
+    if (clienteRef.current) clienteRef.current.textContent = defaultCliente || ''
+    if (montoRef.current) montoRef.current.textContent = formatOut(defaultMonto, OPS[defaultOperation].fmtIn)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Reset rate when operation changes and sync monto display format
   useEffect(() => {
     setRate(OPS[operation].defRate)
@@ -228,9 +235,7 @@ export function Cotizacion({
                   suppressContentEditableWarning
                   onBlur={e => setCliente(e.currentTarget.textContent?.trim() ?? '')}
                   style={fieldValueStyle}
-                >
-                  {defaultCliente || ''}
-                </span>
+                />
               </FieldRow>
 
               {/* Fecha */}
@@ -284,9 +289,7 @@ export function Cotizacion({
                     }
                   }}
                   style={{ ...fieldValueStyle, fontSize: 14 }}
-                >
-                  {formatOut(defaultMonto, op.fmtIn)}
-                </span>
+                />
               </FieldRow>
 
               {/* Monto líquido */}

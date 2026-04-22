@@ -2,12 +2,13 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Filter, Search, ChevronDown, Pencil, Trash2, AlertTriangle, Paperclip } from 'lucide-react'
+import { Plus, Filter, Search, ChevronDown, Pencil, Trash2, AlertTriangle, Paperclip, Calculator } from 'lucide-react'
 import { cn, formatCLP, formatUSD, formatPct } from '@/lib/utils'
 import type { Operation, OperationStatus } from '@/types'
 import { OperacionStatusBadge } from './OperacionStatusBadge'
 import { OperacionForm } from './OperacionForm'
 import { OperacionDocumentos } from './OperacionDocumentos'
+import { CotizacionModal } from './CotizacionModal'
 import { updateOperationStatus, deleteOperation } from '@/app/operaciones/actions'
 import { KpiBox } from '@/components/ui/KpiBox'
 import { TableScroll } from '@/components/ui/TableScroll'
@@ -36,6 +37,7 @@ export function OperacionesView({ initialOperations, clientMap, companyMap, proc
   const [deleteTarget, setDeleteTarget] = useState<Operation | null>(null)
   const [deleting, setDeleting]   = useState(false)
   const [docsTarget, setDocsTarget] = useState<string | null>(null)
+  const [showCotiza, setShowCotiza] = useState(false)
   const [search, setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState<OperationStatus | 'all'>('all')
   const [processorFilter, setProcessorFilter] = useState<string>('all')
@@ -107,6 +109,9 @@ export function OperacionesView({ initialOperations, clientMap, companyMap, proc
         <OperacionDocumentos operacionId={docsTarget} onClose={() => setDocsTarget(null)} />
       )}
 
+      {/* Modal generar cotización */}
+      {showCotiza && <CotizacionModal onClose={() => setShowCotiza(false)} />}
+
       {/* Modal confirmación eliminar */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -168,6 +173,15 @@ export function OperacionesView({ initialOperations, clientMap, companyMap, proc
                 onChange={e => setSearch(e.target.value)}
               />
             </div>
+
+            {/* Botón generar cotización */}
+            <button
+              onClick={() => setShowCotiza(true)}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-md transition-colors flex-shrink-0"
+            >
+              <Calculator className="w-4 h-4" />
+              Generar Cotización
+            </button>
 
             {/* Botón nueva operación */}
             <button

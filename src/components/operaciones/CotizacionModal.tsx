@@ -325,17 +325,8 @@ export function CotizacionModal({ onClose }: Props) {
           <img src="/cotizacion/logo-icon.jpg" alt="" style={{ width: '150px', height: 'auto', flexShrink: 0, paddingTop: '4px' }} crossOrigin="anonymous" />
         </div>
 
-        {/* Separador + ref */}
-        <div style={{
-          margin: '20px 48px 0',
-          paddingTop: '14px',
-          borderTop: '1.5px dashed #d9ddd9',
-          display: 'flex', justifyContent: 'flex-end',
-        }}>
-          <span style={{ fontSize: '11px', color: '#6b7a75' }}>
-            Ref. mercado interbancario
-          </span>
-        </div>
+        {/* Separador */}
+        <div style={{ margin: '20px 48px 0', borderTop: '1.5px dashed #d9ddd9' }} />
 
         {/* Footer */}
         <div style={{

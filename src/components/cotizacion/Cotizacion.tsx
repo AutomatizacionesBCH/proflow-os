@@ -37,8 +37,8 @@ export function Cotizacion({
   defaultRate,
   defaultSpread = 0.25,
   onChange,
-  logoWordmark = '/cotizacion/logo-wordmark.png',
-  logoIcon = '/cotizacion/logo-icon.png',
+  logoWordmark = '/cotizacion/logo-wordmark.jpg',
+  logoIcon = '/cotizacion/logo-icon.jpg',
   footer = 'Smart Global Advisory LLC',
 }: Props) {
   const [cliente, setCliente] = useState(defaultCliente)
@@ -51,6 +51,7 @@ export function Cotizacion({
   const [copied, setCopied] = useState(false)
 
   const montoRef = useRef<HTMLSpanElement>(null)
+  const clienteRef = useRef<HTMLSpanElement>(null)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
 
@@ -129,9 +130,25 @@ export function Cotizacion({
       `}</style>
 
       {/* Toolbar */}
-      <div className="cot-toolbar flex items-center justify-between mb-5 px-1">
-        <span className="text-sm" style={{ color: '#94a3b8' }}>Click en cualquier campo para editar</span>
-        <div className="flex gap-2">
+      <div className="cot-toolbar mb-5 px-1 flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium whitespace-nowrap" style={{ color: '#94a3b8' }}>
+            Nombre cliente:
+          </label>
+          <input
+            type="text"
+            value={cliente}
+            onChange={e => {
+              setCliente(e.target.value)
+              if (clienteRef.current) clienteRef.current.textContent = e.target.value
+            }}
+            placeholder="Escribe el nombre del cliente..."
+            className="flex-1 rounded-lg px-3 py-1.5 text-sm bg-slate-800 border border-slate-700 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs" style={{ color: '#64748b' }}>Los demás campos son editables directamente en el documento</span>
+          <div className="flex gap-2">
           <button
             onClick={handleCopy}
             className="px-4 py-1.5 text-sm rounded-lg border transition-colors"
@@ -148,6 +165,7 @@ export function Cotizacion({
           >
             Imprimir / PDF
           </button>
+          </div>
         </div>
       </div>
 
@@ -204,6 +222,7 @@ export function Cotizacion({
               {/* Cliente */}
               <FieldRow label="NOMBRE CLIENTE">
                 <span
+                  ref={clienteRef}
                   className="cot-editable tabular-nums"
                   contentEditable
                   suppressContentEditableWarning

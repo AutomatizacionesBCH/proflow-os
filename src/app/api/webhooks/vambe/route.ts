@@ -22,9 +22,9 @@ function mapChannel(vambeChannel?: string): { channel: LeadChannel; campaign: st
 }
 
 export async function POST(req: NextRequest) {
-  // 1. Validar API key
-  const apiKey = req.headers.get('x-api-key')
-  if (!process.env.VAMBE_WEBHOOK_SECRET || apiKey !== process.env.VAMBE_WEBHOOK_SECRET) {
+  // 1. Validar token en query param (?token=...) — Vambe no envía headers de auth
+  const token = req.nextUrl.searchParams.get('token')
+  if (!process.env.VAMBE_WEBHOOK_SECRET || token !== process.env.VAMBE_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

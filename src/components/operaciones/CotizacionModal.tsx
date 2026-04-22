@@ -171,6 +171,17 @@ export function CotizacionModal({ onClose }: Props) {
               )}
             </div>
 
+            {/* Preview CLP antes de generar */}
+            {ready && (
+              <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3">
+                <p className="text-xs text-green-400/70 uppercase tracking-wide font-medium mb-1">El cliente recibirá</p>
+                <p className="text-2xl font-bold text-green-400 font-mono tabular-nums">{clpDisplay}</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {usdDisplay} USD × {fxN.toLocaleString('es-CL')} × {pctN}%
+                </p>
+              </div>
+            )}
+
             {/* Botón generar */}
             <button
               onClick={generateImage}
@@ -244,137 +255,128 @@ export function CotizacionModal({ onClose }: Props) {
           position: 'fixed',
           left: '-9999px',
           top: 0,
-          width: '700px',
-          height: '280px',
+          width: '860px',
           backgroundColor: '#ffffff',
           fontFamily: 'Arial, Helvetica, sans-serif',
           overflow: 'hidden',
-          borderRadius: '8px',
+          paddingBottom: '20px',
         }}
       >
-        {/* Ícono de exchange (derecha, decorativo) */}
-        <div style={{ position: 'absolute', right: 0, top: 0, width: '220px', height: '100%' }}>
-          {/* Rectángulo teal (arriba-derecha) */}
-          <div style={{
-            position: 'absolute', top: '30px', right: '25px',
-            width: '110px', height: '110px',
-            backgroundColor: '#009688', borderRadius: '20px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
-              <line x1="12" y1="40" x2="40" y2="12" stroke="white" strokeWidth="5" strokeLinecap="round"/>
-              <polyline points="26,12 40,12 40,26" fill="none" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          {/* Rectángulo navy (abajo-izquierda, encima) */}
-          <div style={{
-            position: 'absolute', top: '90px', right: '80px',
-            width: '110px', height: '110px',
-            backgroundColor: '#1a237e', borderRadius: '20px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
-              <line x1="40" y1="12" x2="12" y2="40" stroke="white" strokeWidth="5" strokeLinecap="round"/>
-              <polyline points="26,40 12,40 12,26" fill="none" stroke="white" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-        </div>
+        {/* Triángulo rojo esquina */}
+        <div style={{
+          position: 'absolute', top: 0, right: 0, width: 0, height: 0,
+          borderStyle: 'solid', borderWidth: '0 52px 52px 0',
+          borderColor: 'transparent #d5322f transparent transparent',
+        }} />
 
         {/* Header */}
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '18px 28px 14px',
-          borderBottom: '1px solid #eeeeee',
+          padding: '20px 36px 16px',
+          borderBottom: '1.5px solid #d9ddd9',
         }}>
-          {/* Logo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '34px', height: '34px', backgroundColor: '#2e7d32',
-              borderRadius: '8px', display: 'flex', alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <rect x="3" y="2" width="14" height="16" rx="2" fill="none" stroke="white" strokeWidth="1.8"/>
-                <polyline points="6,10 9,13 14,7" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                <rect x="6" y="1" width="8" height="3" rx="1.5" fill="white"/>
-              </svg>
-            </div>
-            <div>
-              <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#1a1a1a' }}>Caja</span>
-              <span style={{ fontSize: '16px', color: '#555', marginLeft: '5px' }}>Chica</span>
-            </div>
-          </div>
+          {/* Logo wordmark */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/cotizacion/logo-wordmark.jpg" alt="Caja Chica" style={{ height: '38px', width: 'auto' }} crossOrigin="anonymous" />
           {/* Emisión */}
-          <div style={{ fontSize: '12px', color: '#333', letterSpacing: '0.5px' }}>
+          <div style={{ fontSize: '13px', color: '#0F4F3F', letterSpacing: '0.5px' }}>
             <span style={{ fontWeight: 'bold' }}>EMISIÓN:</span>
-            <span style={{ marginLeft: '10px', fontFamily: 'Courier New, monospace', fontWeight: 'bold' }}>{hora}</span>
+            <span style={{ marginLeft: '10px', fontFamily: 'Courier New, monospace', fontWeight: 'bold', letterSpacing: '0.06em' }}>{hora}</span>
           </div>
         </div>
 
-        {/* Cuerpo — campos */}
-        <div style={{ padding: '18px 28px 0' }}>
-          {/* NOMBRE CLIENTE */}
-          {cliente && (
-            <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '10px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#757575', width: '190px', letterSpacing: '0.3px' }}>
-                NOMBRE CLIENTE:
+        {/* Cuerpo */}
+        <div style={{ padding: '28px 48px 0', display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
+          {/* Campos */}
+          <div style={{ flex: 1 }}>
+            {/* NOMBRE CLIENTE */}
+            {cliente && (
+              <CardRow label="NOMBRE CLIENTE" value={cliente} />
+            )}
+            {/* FECHA COTIZACIÓN */}
+            <CardRow label="FECHA COTIZACIÓN" value={fecha} />
+            {/* TIPO OPERACIÓN */}
+            <CardRow label="TIPO OPERACIÓN" value="DÓLARES A PESOS (CLP)" bold color="#0F4F3F" />
+
+            <div style={{ height: 14 }} />
+
+            {/* DÓLARES A OPERAR */}
+            <CardRow label="DÓLARES A OPERAR" value={`US$${usdDisplay}`} mono />
+
+            {/* MONTO LÍQUIDO */}
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7a75', width: '190px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                Monto Líquido
               </span>
-              <span style={{ fontSize: '12px', color: '#212121', borderBottom: '1px solid #bbb', minWidth: '180px', paddingBottom: '1px' }}>
-                {cliente}
-              </span>
-            </div>
-          )}
-          {/* FECHA COTIZACIÓN */}
-          <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '10px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#757575', width: '190px', letterSpacing: '0.3px' }}>
-              FECHA COTIZACIÓN:
-            </span>
-            <span style={{ fontSize: '12px', color: '#212121', borderBottom: '1px solid #bbb', minWidth: '120px', paddingBottom: '1px' }}>
-              {fecha}
-            </span>
-          </div>
-          {/* TIPO OPERACIÓN */}
-          <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '18px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#757575', width: '190px', letterSpacing: '0.3px' }}>
-              TIPO OPERACIÓN:
-            </span>
-            <span style={{ fontSize: '12px', color: '#212121', borderBottom: '1px solid #bbb', minWidth: '180px', paddingBottom: '1px' }}>
-              DÓLARES A PESOS (CLP)
-            </span>
-          </div>
-          {/* DÓLARES A OPERAR */}
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#757575', width: '190px', letterSpacing: '0.3px' }}>
-              DÓLARES A OPERAR:
-            </span>
-            <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#212121', fontFamily: 'Arial, sans-serif' }}>
-              {usdDisplay}
-            </span>
-          </div>
-          {/* MONTO LIQUIDO */}
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#757575', width: '190px', letterSpacing: '0.3px' }}>
-              MONTO LIQUIDO
-            </span>
-            <div style={{
-              backgroundColor: '#c8e6c9', padding: '5px 18px',
-              borderRadius: '4px', minWidth: '130px', textAlign: 'center',
-            }}>
-              <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#1b5e20' }}>
-                {clpDisplay}
-              </span>
+              <div style={{
+                backgroundColor: '#C6F0D2', border: '1.5px solid #6bc77e',
+                borderRadius: '6px', padding: '5px 20px',
+                minWidth: '200px', textAlign: 'center',
+              }}>
+                <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#0F4F3F', fontFamily: 'Courier New, monospace' }}>
+                  {clpDisplay}
+                </span>
+              </div>
             </div>
           </div>
+
+          {/* Logo ícono derecha */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/cotizacion/logo-icon.jpg" alt="" style={{ width: '150px', height: 'auto', flexShrink: 0, paddingTop: '4px' }} crossOrigin="anonymous" />
+        </div>
+
+        {/* Pills TC */}
+        <div style={{
+          margin: '20px 48px 0',
+          paddingTop: '14px',
+          borderTop: '1.5px dashed #d9ddd9',
+          display: 'flex', alignItems: 'center', gap: '12px',
+        }}>
+          <span style={{
+            background: '#f0f2f0', border: '1px solid #d9ddd9',
+            borderRadius: '999px', padding: '4px 14px',
+            fontSize: '12px', color: '#333', fontWeight: 500,
+          }}>
+            TC: 1 USD = ${fxN.toLocaleString('es-CL')} CLP
+          </span>
+          <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#6b7a75' }}>
+            Ref. mercado interbancario
+          </span>
         </div>
 
         {/* Footer */}
         <div style={{
-          position: 'absolute', bottom: '14px', right: '28px',
-          fontSize: '10px', color: '#9e9e9e', fontStyle: 'italic',
+          textAlign: 'right', fontSize: '11px', color: '#6b7a75',
+          padding: '12px 48px 0',
         }}>
           Smart Global Advisory LLC
         </div>
       </div>
     </>
+  )
+}
+
+function CardRow({
+  label, value, bold, color, mono,
+}: {
+  label: string; value: string; bold?: boolean; color?: string; mono?: boolean
+}) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: '10px' }}>
+      <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b7a75', width: '190px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+        {label}
+      </span>
+      <span style={{
+        fontSize: '13px',
+        color: color ?? '#212121',
+        borderBottom: '1.5px solid #111',
+        minWidth: '160px',
+        paddingBottom: '1px',
+        fontWeight: bold ? 700 : 400,
+        fontFamily: mono ? 'Courier New, monospace' : 'inherit',
+      }}>
+        {value}
+      </span>
+    </div>
   )
 }

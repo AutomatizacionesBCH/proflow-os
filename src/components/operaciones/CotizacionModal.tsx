@@ -325,21 +325,14 @@ export function CotizacionModal({ onClose }: Props) {
           <img src="/cotizacion/logo-icon.jpg" alt="" style={{ width: '150px', height: 'auto', flexShrink: 0, paddingTop: '4px' }} crossOrigin="anonymous" />
         </div>
 
-        {/* Pills TC */}
+        {/* Separador + ref */}
         <div style={{
           margin: '20px 48px 0',
           paddingTop: '14px',
           borderTop: '1.5px dashed #d9ddd9',
-          display: 'flex', alignItems: 'center', gap: '12px',
+          display: 'flex', justifyContent: 'flex-end',
         }}>
-          <span style={{
-            background: '#f0f2f0', border: '1px solid #d9ddd9',
-            borderRadius: '999px', padding: '4px 14px',
-            fontSize: '12px', color: '#333', fontWeight: 500,
-          }}>
-            TC: 1 USD = ${fxN.toLocaleString('es-CL')} CLP
-          </span>
-          <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#6b7a75' }}>
+          <span style={{ fontSize: '11px', color: '#6b7a75' }}>
             Ref. mercado interbancario
           </span>
         </div>

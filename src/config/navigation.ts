@@ -7,6 +7,7 @@ import {
   Wallet,
   TrendingUp,
   Megaphone,
+  Calculator,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -65,5 +66,11 @@ export const navItems: NavItem[] = [
     href: '/marketing',
     icon: Megaphone,
     description: 'Campañas y canales',
+  },
+  {
+    label: 'Cotizador',
+    href: '/cotizacion',
+    icon: Calculator,
+    description: 'Generador de cotizaciones',
   },
 ]

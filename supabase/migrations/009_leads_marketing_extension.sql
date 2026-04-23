@@ -136,12 +136,11 @@ SELECT
     ELSE 'new'
   END,
 
-  -- Mapear client_id → converted_to_client_id solo si es uuid válido y existe en clients
+  -- Mapear client_id → converted_to_client_id solo si existe en clients
   CASE
     WHEN client_id IS NOT NULL
-      AND client_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-      AND EXISTS (SELECT 1 FROM clients WHERE id = client_id::uuid)
-    THEN client_id::uuid
+      AND EXISTS (SELECT 1 FROM clients WHERE id = client_id)
+    THEN client_id
     ELSE NULL
   END,
 

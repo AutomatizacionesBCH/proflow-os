@@ -81,6 +81,7 @@ export type Lead = {
 
   // Gestión
   assigned_to: string | null
+  assigned_to_recommendation: string | null
   last_interaction_at: string | null
   next_action: string | null
   next_action_due_at: string | null

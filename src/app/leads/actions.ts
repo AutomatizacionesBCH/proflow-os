@@ -2,7 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import type { LeadStage, LeadChannel } from '@/types'
+import type { Lead, LeadStage, LeadChannel } from '@/types'
+import { calculateLeadScore } from '@/lib/lead-agent'
 
 export type LeadInput = {
   full_name:          string
@@ -59,6 +60,38 @@ export async function updateLead(id: string, input: LeadInput): Promise<ActionRe
     notes:              input.notes || null,
   } as any).eq('id', id)
   if (error) return { success: false, error: error.message }
+  revalidatePath('/leads')
+  return { success: true }
+}
+
+const RECALC_BATCH = 100
+
+export async function recalculateAllLeads(): Promise<ActionResult> {
+  const supabase = await createClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: leads, error: fetchError } = await supabase.from('leads').select('*') as any
+  if (fetchError) return { success: false, error: fetchError.message }
+
+  const rows = (leads as Lead[]).map(lead => {
+    const result = calculateLeadScore(lead)
+    return { id: lead.id, ...result }
+  })
+
+  for (let i = 0; i < rows.length; i += RECALC_BATCH) {
+    const batch = rows.slice(i, i + RECALC_BATCH)
+    await Promise.all(
+      batch.map(r =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabase.from('leads').update({
+          heat_score:                 r.heat_score,
+          priority_label:             r.priority_label,
+          assigned_to_recommendation: r.assigned_to_recommendation,
+          next_action:                r.next_action,
+        } as any).eq('id', r.id)
+      )
+    )
+  }
+
   revalidatePath('/leads')
   return { success: true }
 }

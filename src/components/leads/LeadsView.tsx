@@ -2,13 +2,13 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Filter, Users, CheckCircle2, Flame, Clock, Zap, Moon } from 'lucide-react'
+import { Plus, Search, Filter, Users, CheckCircle2, Flame, Clock, Zap, Moon, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Lead, LeadStage, LeadChannel } from '@/types'
 import { LeadStatusBadge } from './LeadStatusBadge'
 import { LeadChannelBadge } from './LeadChannelBadge'
 import { LeadForm } from './LeadForm'
-import { convertLead } from '@/app/leads/actions'
+import { convertLead, recalculateAllLeads } from '@/app/leads/actions'
 import { TableScroll } from '@/components/ui/TableScroll'
 
 // ── Filtros de etapa ──────────────────────────────────────────
@@ -43,14 +43,14 @@ const QUICK_TABS: { id: QuickTab; label: string; color: string; filter: (l: Lead
     id: 'hot',
     label: '🔥 Hot Now',
     color: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
-    filter: l => l.heat_score >= 7 || l.priority_label === 'hot',
+    filter: l => l.priority_label === 'hot',
   },
   {
     id: 'magda',
     label: '👤 Pendientes Magda',
     color: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
     filter: l =>
-      (l.assigned_to ?? '').toLowerCase().includes('magda') &&
+      l.assigned_to_recommendation === 'Magda' &&
       !['operated', 'lost'].includes(l.stage),
   },
   {
@@ -58,22 +58,22 @@ const QUICK_TABS: { id: QuickTab; label: string; color: string; filter: (l: Lead
     label: '🧑 Listos para Alberto',
     color: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
     filter: l =>
-      (l.assigned_to ?? '').toLowerCase().includes('alberto') &&
+      l.assigned_to_recommendation === 'Alberto' &&
       ['ready_to_operate', 'ready_to_schedule'].includes(l.stage),
   },
 ]
 
-// ── Heat score badge ──────────────────────────────────────────
+// ── Heat score badge (0-100 scale) ───────────────────────────
 function HeatBadge({ score }: { score: number }) {
   const cls =
-    score >= 8 ? 'bg-red-500/15 text-red-400 border-red-500/30' :
-    score >= 6 ? 'bg-orange-500/15 text-orange-400 border-orange-500/30' :
-    score >= 4 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
-    score > 0  ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
-                 'bg-slate-800 text-slate-600 border-slate-700'
+    score >= 80 ? 'bg-red-500/15 text-red-400 border-red-500/30' :
+    score >= 60 ? 'bg-orange-500/15 text-orange-400 border-orange-500/30' :
+    score >= 40 ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+    score >  0  ? 'bg-slate-700/60 text-slate-400 border-slate-600/40' :
+                  'bg-slate-800 text-slate-600 border-slate-700'
   return (
     <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono font-medium border', cls)}>
-      {score > 0 && <Flame className="w-2.5 h-2.5" />}
+      {score >= 80 && <Flame className="w-2.5 h-2.5" />}
       {score}
     </span>
   )
@@ -92,13 +92,14 @@ export function LeadsView({ initialLeads }: Props) {
   const [channelFilter, setChannelFilter] = useState<LeadChannel | 'todos'>('todos')
   const [quickTab, setQuickTab]           = useState<QuickTab>(null)
   const [converting, setConverting]       = useState<string | null>(null)
+  const [recalculating, setRecalculating] = useState(false)
 
   // ── Stats para KPIs ────────────────────────────────────────
   const stats = useMemo(() => ({
     total:         initialLeads.length,
-    calientes:     initialLeads.filter(l => l.heat_score >= 7 || l.priority_label === 'hot').length,
+    calientes:     initialLeads.filter(l => l.priority_label === 'hot').length,
     pendMagda:     initialLeads.filter(l =>
-      (l.assigned_to ?? '').toLowerCase().includes('magda') && !['operated','lost'].includes(l.stage)
+      l.assigned_to_recommendation === 'Magda' && !['operated', 'lost'].includes(l.stage)
     ).length,
     listosOperar:  initialLeads.filter(l => l.stage === 'ready_to_operate').length,
     dormidos:      initialLeads.filter(l => l.stage === 'dormant').length,
@@ -153,6 +154,13 @@ export function LeadsView({ initialLeads }: Props) {
     setQuickTab(prev => prev === id ? null : id)
     setStageFilter('todos')
     setChannelFilter('todos')
+  }
+
+  async function handleRecalculate() {
+    setRecalculating(true)
+    await recalculateAllLeads()
+    setRecalculating(false)
+    startTransition(() => router.refresh())
   }
 
   return (
@@ -242,6 +250,14 @@ export function LeadsView({ initialLeads }: Props) {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
+          <button
+            onClick={handleRecalculate}
+            disabled={recalculating}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md transition-colors flex-shrink-0 disabled:opacity-50"
+          >
+            <RefreshCw className={cn('w-4 h-4', recalculating && 'animate-spin')} />
+            {recalculating ? 'Calculando…' : 'Recalcular scores'}
+          </button>
           <button
             onClick={() => { setEditing(undefined); setShowForm(true) }}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors flex-shrink-0"

@@ -53,10 +53,15 @@ src/
 │   │   └── actions.ts            # createCashPosition, updateCashPosition
 │   ├── leads/
 │   │   ├── page.tsx              # Server Component — lee leads
-│   │   └── actions.ts            # createLead, updateLead, convertLead
-│   └── marketing/
-│       ├── page.tsx              # Server Component — lee marketing_spend
-│       └── actions.ts            # createMarketingSpend, updateMarketingSpend, deleteMarketingSpend
+│   │   └── actions.ts            # createLead, updateLead, convertLead, recalculateAllLeads
+│   ├── marketing/
+│   │   ├── page.tsx              # Server Component — lee marketing_spend
+│   │   └── actions.ts            # createMarketingSpend, updateMarketingSpend, deleteMarketingSpend
+│   └── api/
+│       └── webhooks/
+│           └── vambe/route.ts    # POST — recibe eventos stage.changed de Vambe,
+│                                 # filtra etapas target, crea lead deduplicado por teléfono
+│                                 # Auth: ?token=VAMBE_WEBHOOK_SECRET en URL (no header)
 │
 ├── components/
 │   ├── layout/
@@ -99,9 +104,13 @@ src/
 │   │   ├── CajaView.tsx          # 'use client' — caja actual + capacidad estimada + historial
 │   │   └── CajaForm.tsx          # 'use client' — slide-over registrar/editar posición
 │   ├── leads/
-│   │   ├── LeadsView.tsx         # 'use client' — tabla + filtros estado/canal + KPIs
-│   │   ├── LeadForm.tsx          # 'use client' — slide-over crear/editar
-│   │   ├── LeadStatusBadge.tsx
+│   │   ├── LeadsView.tsx         # 'use client' — KPIs prioridad (hot/warm/follow_up/cold) +
+│   │   │                         # KPIs gestión (Magda/operar/dormidos) + tabs rápidos +
+│   │   │                         # filtros stage/canal/priority + tabla con heat score + botón recalcular
+│   │   ├── LeadForm.tsx          # 'use client' — slide-over crear/editar con heat score slider,
+│   │   │                         # responsable toggle, próxima acción + fecha
+│   │   ├── LeadStatusBadge.tsx   # 9 stages: new/contacted/qualified/docs_pending/
+│   │   │                         # ready_to_schedule/ready_to_operate/operated/dormant/lost
 │   │   └── LeadChannelBadge.tsx
 │   └── marketing/
 │       ├── MarketingView.tsx     # 'use client' — KPIs + barras por canal + tabla histórica
@@ -114,13 +123,20 @@ src/
 │   ├── supabase/
 │   │   ├── client.ts             # createBrowserClient — para Client Components
 │   │   └── server.ts             # createServerClient — para Server Components
-│   └── utils.ts                  # cn(), formatCLP(), formatUSD(), formatPct(),
-│                                 # suggestPayoutPct(), calcOperation(),
-│                                 # formatRutForStorage(), formatRutForDisplay(), validateRut()
+│   ├── utils.ts                  # cn(), formatCLP(), formatUSD(), formatPct(),
+│   │                             # suggestPayoutPct(), calcOperation(),
+│   │                             # formatRutForStorage(), formatRutForDisplay(), validateRut()
+│   └── lead-agent.ts             # calculateLeadScore(lead) → { heat_score, priority_label,
+│                                 # assigned_to_recommendation, next_action }
+│                                 # Reglas: stage (+40/+30/+15/+10), recency (+20/+10),
+│                                 # phone (+5/-15), converted (+15), notes keywords (±10)
 │
 └── types/
-    ├── index.ts                  # Todos los tipos del dominio
+    ├── index.ts                  # Todos los tipos del dominio (re-exporta desde leads-marketing.types)
+    ├── leads-marketing.types.ts  # Lead, LeadStage (9 valores), LeadPriority, LeadType,
+    │                             # LeadEvent, Audience, Campaign, CampaignMessage, Integration
     └── database.types.ts         # Tipos Supabase (Row/Insert/Update por tabla)
+                                  # ⚠️ DESACTUALIZADO — usar `as any` en inserts/updates de leads
 ```
 
 ## Patrones establecidos
@@ -260,9 +276,11 @@ El esquema consolidado está en `supabase/schema_completo.sql` (usar para migrar
 | 003 | `003_alter_companies_add_fields.sql` | Agrega `legal_name`, `status`, `notes` a `companies` |
 | 004 | `004_alter_processors_add_fields.sql` | Agrega `company_id`, `status`, `daily_limit_usd`, `notes` a `processors` |
 | 005 | `005_create_cash_positions.sql` | Tabla `cash_positions` |
-| 006 | `006_create_leads.sql` | Tabla `leads` |
+| 006 | `006_create_leads.sql` | Tabla `leads` (esquema original, reemplazado por 009) |
 | 007 | `007_create_marketing_spend.sql` | Tabla `marketing_spend` |
 | 008 | `008_alter_operations_add_contract_and_storage.sql` | Agrega `contract_url` a `operations`, crea buckets Storage |
+| 009 | `009_leads_marketing_extension.sql` | Reemplaza tabla `leads` con esquema CRM completo + crea `lead_events`, `audiences`, `campaigns`, `campaign_messages`, `integrations`. Preserva datos existentes con mapeo de stage |
+| 010 | `010_lead_agent_columns.sql` | Agrega `heat_score`, `priority_label`, `assigned_to_recommendation`, `next_action` + índices |
 
 ### `operations`
 `client_id` (**text**, sin FK — ver nota abajo), `company_id` (text), `processor_id` (text), `operation_date`, `amount_usd`, `fx_rate_used`, `client_payout_pct`, fees (`processor_fee_pct`, `loan_fee_pct`, `payout_fee_pct`, `wire_fee_usd`, `receive_fee_usd`), calculados (`gross_clp`, `amount_clp_paid`, `profit_clp`), `status` (pendiente/en_proceso/completada/anulada), `contract_url`.
@@ -284,7 +302,26 @@ Al crear una operación nueva se busca el cliente por RUT (`ensureCliente`): si 
 `id`, `date`, `available_clp`, `notes`, `created_at`.
 
 ### `leads`
-`id`, `full_name`, `phone`, `source_channel` (Meta/TikTok/LinkedIn/Twitter/X/referido/otro), `campaign_name`, `status` (nuevo/contactado/en_seguimiento/convertido/perdido), `converted_to_client` (bool), `client_id` (FK nullable), `notes`, `created_at`.
+Esquema CRM completo (migración 009 + 010):
+- **Origen:** `external_source_id`, `source_platform` (vambe/linkedin/x/manual), `source_channel`, `campaign_name`
+- **Contacto:** `full_name`, `phone`, `whatsapp`, `email`, `linkedin_profile`, `x_handle`
+- **Clasificación:** `stage` (new/contacted/qualified/docs_pending/ready_to_schedule/ready_to_operate/operated/dormant/lost), `heat_score` (0-100), `priority_label` (hot/warm/follow_up/cold), `lead_type`, `lead_status_reason`
+- **Gestión:** `assigned_to`, `assigned_to_recommendation`, `last_interaction_at`, `next_action`, `next_action_due_at`
+- **Conversión:** `converted_to_client_id` (FK → clients, nullable)
+- **Extras:** `notes`, `raw_payload` (jsonb), `created_at`, `updated_at`
+
+**Tablas relacionadas:** `lead_events`, `audiences`, `campaigns`, `campaign_messages`, `integrations`
+
+**Lead Agent (`src/lib/lead-agent.ts`):**
+- `recalculateAllLeads()` en actions.ts actualiza heat_score, priority_label, assigned_to_recommendation y next_action para todos los leads en batches de 100
+- Umbral hot ≥60, warm ≥40, follow_up ≥20, cold <20
+- Botón "Recalcular scores" en /leads ejecuta esta acción
+
+**Vambe webhook:**
+- Endpoint: `/api/webhooks/vambe?token=VAMBE_WEBHOOK_SECRET`
+- Etapas target: Interesados, Ganados, Sobrecupos, Clientes +5000 USD
+- Deduplica por teléfono antes de insertar
+- Variable de entorno requerida: `VAMBE_WEBHOOK_SECRET`
 
 ### `marketing_spend`
 `id`, `date`, `channel` (Meta/TikTok/LinkedIn/Twitter/X/referido/otro), `amount_clp`, `notes`, `created_at`.
@@ -309,18 +346,18 @@ type OperationStatus  = 'pendiente' | 'en_proceso' | 'completada' | 'anulada'
 type EmpresaStatus    = 'activo' | 'pausado' | 'en_riesgo'
 type ProcessorStatus  = 'activo' | 'pausado' | 'en_riesgo'
 type ClientTag        = 'VIP' | 'frecuente' | 'nuevo' | 'riesgo' | 'pausado'
-type LeadStatus       = 'nuevo' | 'contactado' | 'en_seguimiento' | 'convertido' | 'perdido'
+type LeadStage        = 'new' | 'contacted' | 'qualified' | 'docs_pending' |
+                        'ready_to_schedule' | 'ready_to_operate' | 'operated' | 'dormant' | 'lost'
+type LeadPriority     = 'hot' | 'warm' | 'follow_up' | 'cold'
+type LeadType         = 'vip' | 'spot' | 'new' | 'dormant' | 'high_potential' | 'trust_issue' | 'unclear'
 type LeadChannel      = 'Meta' | 'TikTok' | 'LinkedIn' | 'Twitter/X' | 'referido' | 'otro'
 type MarketingChannel = 'Meta' | 'TikTok' | 'LinkedIn' | 'Twitter/X' | 'referido' | 'otro'
 
-type Operation       { id, client_id, company_id, processor_id, operation_date, amount_usd, ... }
-type Company         { id, name, legal_name, status, notes, created_at }
-type Processor       { id, name, company_id, type, status, daily_limit_usd, notes, created_at }
-type Cliente         { id, full_name, document_id, email, phone, assigned_company_id,
-                       assigned_processor_id, tags, notes, created_at }
-type CashPosition    { id, date, available_clp, notes, created_at }
-type Lead            { id, full_name, phone, source_channel, campaign_name, status,
-                       converted_to_client, client_id, notes, created_at }
+// Lead tiene ~20 campos — ver src/types/leads-marketing.types.ts para definición completa
+type Lead            { id, stage, heat_score, priority_label, assigned_to,
+                       assigned_to_recommendation, full_name, phone, whatsapp, email,
+                       source_channel, campaign_name, next_action, next_action_due_at,
+                       converted_to_client_id, last_interaction_at, notes, ... }
 type MarketingSpend  { id, date, channel, amount_clp, notes, created_at }
 ```
 
@@ -334,7 +371,7 @@ type MarketingSpend  { id, date, channel, amount_clp, notes, created_at }
 | Empresas | ✅ Completo | `companies` | Lista + CRUD + badges de estado |
 | Procesadores | ✅ Completo | `processors` | Lista + CRUD + barra uso diario USD |
 | Caja | ✅ Completo | `cash_positions` | Caja actual + estimado capacidad + historial |
-| Leads | ✅ Completo | `leads` | Pipeline + filtros dual + convertir a cliente |
+| Leads | ✅ Completo | `leads` | Lead Agent (scoring 0-100, priority_label, assigned_to_recommendation) + KPIs hot/warm/follow_up/cold + tabs rápidos + filtros stage/canal/priority + Vambe webhook + 2,276 leads importados |
 | Marketing | ✅ Completo | `marketing_spend` | Gasto por canal + barras visuales + historial |
 | Documentos | ✅ Completo | Storage | Gestión de archivos por cliente, agrupados por fecha, con contratos integrados |
 
@@ -345,6 +382,9 @@ type MarketingSpend  { id, date, channel, amount_clp, notes, created_at }
 | `importar_operaciones.py` | Importa operaciones históricas desde Excel (versión original con dedup) |
 | `fix_historicos.py` | Borra ops con `fx_rate_used=0` y re-importa 1384 filas del Excel asignando empresa y procesadores reales |
 | `sync_telefonos.py` | Sincroniza teléfonos desde `CLIENTES LCC - BASE LIMPIA.xlsx` haciendo match por RUT y luego por nombre |
+| `importar_2_marzo_atras.py` | Importa operaciones históricas anteriores al 2 de marzo |
+| `importar_vambe_leads.py` | Importó 2,275 contactos de Vambe (etapas Interesados/Ganados/Sobrecupos/Clientes +5000 USD) a la tabla leads |
+| `update_vambe_emails.py` | Actualizó emails de los 127 contactos Vambe que tenían email |
 
 Todos leen credenciales de `.env.local`. Ver `MIGRACION.md` para el orden de ejecución al migrar.
 
@@ -356,3 +396,6 @@ Todos leen credenciales de `.env.local`. Ver `MIGRACION.md` para el orden de eje
 - Importador CSV para historial Stripe y NMI
 - Integraciones automáticas con Meta Ads
 - Reemplazar `PlaceholderChart` con recharts cuando se necesite gráfico real
+- Regenerar `database.types.ts` desde Supabase CLI (actualmente desactualizado — leads usa `as any`)
+- UI para módulo Marketing: audiences, campaigns (schema en DB, sin vista aún)
+- Evolucionar Lead Agent scoring con IA (base lista en `src/lib/lead-agent.ts`)

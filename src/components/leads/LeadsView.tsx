@@ -173,6 +173,7 @@ export function LeadsView({ initialLeads }: Props) {
   }
 
   function activateStageFilter(stage: LeadStage | 'todos') {
+    if (stage === 'todos') { resetFilters(); return }
     resetFilters()
     setStageFilter(stage)
   }
@@ -336,7 +337,7 @@ export function LeadsView({ initialLeads }: Props) {
               onClick={() => activateStageFilter(s.value)}
               className={cn(
                 'px-3 py-1 text-xs rounded-md border transition-colors',
-                stageFilter === s.value && !quickTab
+                stageFilter === s.value && !quickTab && !priorityFilter
                   ? 'bg-blue-600/20 text-blue-400 border-blue-500/30'
                   : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-300'
               )}

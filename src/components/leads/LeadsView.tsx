@@ -91,18 +91,22 @@ export function LeadsView({ initialLeads }: Props) {
   const [stageFilter, setStageFilter]     = useState<LeadStage | 'todos'>('todos')
   const [channelFilter, setChannelFilter] = useState<LeadChannel | 'todos'>('todos')
   const [quickTab, setQuickTab]           = useState<QuickTab>(null)
+  const [priorityFilter, setPriorityFilter] = useState<string | null>(null)
   const [converting, setConverting]       = useState<string | null>(null)
   const [recalculating, setRecalculating] = useState(false)
 
   // ── Stats para KPIs ────────────────────────────────────────
   const stats = useMemo(() => ({
-    total:         initialLeads.length,
-    calientes:     initialLeads.filter(l => l.priority_label === 'hot').length,
-    pendMagda:     initialLeads.filter(l =>
+    total:        initialLeads.length,
+    hot:          initialLeads.filter(l => l.priority_label === 'hot').length,
+    warm:         initialLeads.filter(l => l.priority_label === 'warm').length,
+    follow_up:    initialLeads.filter(l => l.priority_label === 'follow_up').length,
+    cold:         initialLeads.filter(l => l.priority_label === 'cold').length,
+    pendMagda:    initialLeads.filter(l =>
       l.assigned_to_recommendation === 'Magda' && !['operated', 'lost'].includes(l.stage)
     ).length,
-    listosOperar:  initialLeads.filter(l => l.stage === 'ready_to_operate').length,
-    dormidos:      initialLeads.filter(l => l.stage === 'dormant').length,
+    listosOperar: initialLeads.filter(l => l.stage === 'ready_to_operate').length,
+    dormidos:     initialLeads.filter(l => l.stage === 'dormant').length,
   }), [initialLeads])
 
   // ── Filtrado ────────────────────────────────────────────────
@@ -115,6 +119,7 @@ export function LeadsView({ initialLeads }: Props) {
       } else {
         if (stageFilter !== 'todos' && l.stage !== stageFilter) return false
         if (channelFilter !== 'todos' && l.source_channel !== channelFilter) return false
+        if (priorityFilter && l.priority_label !== priorityFilter) return false
       }
       if (search) {
         const q = search.toLowerCase()
@@ -154,6 +159,7 @@ export function LeadsView({ initialLeads }: Props) {
     setQuickTab(prev => prev === id ? null : id)
     setStageFilter('todos')
     setChannelFilter('todos')
+    setPriorityFilter(null)
   }
 
   async function handleRecalculate() {
@@ -186,40 +192,74 @@ export function LeadsView({ initialLeads }: Props) {
         </button>
       </div>
 
-      {/* ── KPIs ── */}
+      {/* ── KPIs prioridad ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard
-          icon={<Flame className="w-4 h-4 text-orange-400" />}
-          label="Leads calientes"
-          value={stats.calientes}
+          icon={<Flame className="w-4 h-4 text-red-400" />}
+          label="🔥 Hot"
+          value={stats.hot}
           color="orange"
           onClick={() => activateQuickTab('hot')}
           active={quickTab === 'hot'}
         />
         <KpiCard
-          icon={<Clock className="w-4 h-4 text-violet-400" />}
-          label="Pendientes Magda"
-          value={stats.pendMagda}
-          color="violet"
-          onClick={() => activateQuickTab('magda')}
-          active={quickTab === 'magda'}
+          icon={<Zap className="w-4 h-4 text-amber-400" />}
+          label="🟡 Warm"
+          value={stats.warm}
+          color="amber"
+          onClick={() => { setQuickTab(null); setPriorityFilter('warm') }}
+          active={priorityFilter === 'warm' && !quickTab}
         />
         <KpiCard
-          icon={<Zap className="w-4 h-4 text-green-400" />}
-          label="Listos para operar"
-          value={stats.listosOperar}
-          color="green"
-          onClick={() => { setQuickTab(null); setStageFilter('ready_to_operate') }}
-          active={stageFilter === 'ready_to_operate'}
+          icon={<Clock className="w-4 h-4 text-blue-400" />}
+          label="🔁 Follow-up"
+          value={stats.follow_up}
+          color="blue"
+          onClick={() => { setQuickTab(null); setPriorityFilter('follow_up') }}
+          active={priorityFilter === 'follow_up' && !quickTab}
         />
         <KpiCard
           icon={<Moon className="w-4 h-4 text-slate-400" />}
-          label="Dormidos reactivables"
-          value={stats.dormidos}
+          label="🧊 Cold"
+          value={stats.cold}
           color="slate"
-          onClick={() => { setQuickTab(null); setStageFilter('dormant') }}
-          active={stageFilter === 'dormant'}
+          onClick={() => { setQuickTab(null); setPriorityFilter('cold') }}
+          active={priorityFilter === 'cold' && !quickTab}
         />
+      </div>
+
+      {/* ── KPIs gestión ── */}
+      <div className="grid grid-cols-3 gap-3">
+        <button
+          onClick={() => activateQuickTab('magda')}
+          className={cn(
+            'text-left px-4 py-3 rounded-xl border transition-all',
+            quickTab === 'magda' ? 'border-violet-500/40 bg-violet-500/5' : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+          )}
+        >
+          <p className="text-xl font-bold text-slate-100 tabular-nums">{stats.pendMagda}</p>
+          <p className="text-xs text-slate-500 mt-0.5">Pendientes Magda</p>
+        </button>
+        <button
+          onClick={() => { setQuickTab(null); setStageFilter('ready_to_operate') }}
+          className={cn(
+            'text-left px-4 py-3 rounded-xl border transition-all',
+            stageFilter === 'ready_to_operate' && !quickTab ? 'border-green-500/40 bg-green-500/5' : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+          )}
+        >
+          <p className="text-xl font-bold text-slate-100 tabular-nums">{stats.listosOperar}</p>
+          <p className="text-xs text-slate-500 mt-0.5">Listos para operar</p>
+        </button>
+        <button
+          onClick={() => { setQuickTab(null); setStageFilter('dormant') }}
+          className={cn(
+            'text-left px-4 py-3 rounded-xl border transition-all',
+            stageFilter === 'dormant' && !quickTab ? 'border-slate-600/40 bg-slate-800/40' : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+          )}
+        >
+          <p className="text-xl font-bold text-slate-100 tabular-nums">{stats.dormidos}</p>
+          <p className="text-xs text-slate-500 mt-0.5">Dormidos reactivables</p>
+        </button>
       </div>
 
       {/* ── Tabs rápidos ── */}
@@ -240,9 +280,9 @@ export function LeadsView({ initialLeads }: Props) {
             </span>
           </button>
         ))}
-        {(quickTab || stageFilter !== 'todos' || channelFilter !== 'todos') && (
+        {(quickTab || stageFilter !== 'todos' || channelFilter !== 'todos' || priorityFilter) && (
           <button
-            onClick={() => { setQuickTab(null); setStageFilter('todos'); setChannelFilter('todos') }}
+            onClick={() => { setQuickTab(null); setStageFilter('todos'); setChannelFilter('todos'); setPriorityFilter(null) }}
             className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300 border border-slate-700 rounded-md transition-colors"
           >
             ✕ Limpiar filtros
@@ -452,12 +492,14 @@ function KpiCard({
   icon: React.ReactNode
   label: string
   value: number
-  color: 'orange' | 'violet' | 'green' | 'slate'
+  color: 'orange' | 'amber' | 'blue' | 'violet' | 'green' | 'slate'
   onClick: () => void
   active: boolean
 }) {
   const ring = {
     orange: 'border-orange-500/40 bg-orange-500/5',
+    amber:  'border-amber-500/40  bg-amber-500/5',
+    blue:   'border-blue-500/40   bg-blue-500/5',
     violet: 'border-violet-500/40 bg-violet-500/5',
     green:  'border-green-500/40  bg-green-500/5',
     slate:  'border-slate-600/40  bg-slate-800/40',

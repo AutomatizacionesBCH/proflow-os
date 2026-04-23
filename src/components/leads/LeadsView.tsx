@@ -4,7 +4,7 @@ import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, Filter, Users, CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Lead, LeadStatus, LeadChannel } from '@/types'
+import type { Lead, LeadStage, LeadChannel } from '@/types'
 import { LeadStatusBadge } from './LeadStatusBadge'
 import { LeadChannelBadge } from './LeadChannelBadge'
 import { LeadForm } from './LeadForm'
@@ -12,13 +12,17 @@ import { convertLead } from '@/app/leads/actions'
 import { KpiBox } from '@/components/ui/KpiBox'
 import { TableScroll } from '@/components/ui/TableScroll'
 
-const STATUS_FILTERS: { value: LeadStatus | 'todos'; label: string }[] = [
-  { value: 'todos',          label: 'Todos' },
-  { value: 'nuevo',          label: 'Nuevo' },
-  { value: 'contactado',     label: 'Contactado' },
-  { value: 'en_seguimiento', label: 'En seguimiento' },
-  { value: 'convertido',     label: 'Convertido' },
-  { value: 'perdido',        label: 'Perdido' },
+const STAGE_FILTERS: { value: LeadStage | 'todos'; label: string }[] = [
+  { value: 'todos',             label: 'Todos' },
+  { value: 'new',               label: 'Nuevo' },
+  { value: 'contacted',         label: 'Contactado' },
+  { value: 'qualified',         label: 'Calificado' },
+  { value: 'docs_pending',      label: 'Docs pendientes' },
+  { value: 'ready_to_schedule', label: 'Listo agendar' },
+  { value: 'ready_to_operate',  label: 'Listo operar' },
+  { value: 'operated',          label: 'Operado' },
+  { value: 'dormant',           label: 'Dormido' },
+  { value: 'lost',              label: 'Perdido' },
 ]
 
 const CHANNEL_FILTERS: { value: LeadChannel | 'todos'; label: string }[] = [
@@ -40,13 +44,13 @@ export function LeadsView({ initialLeads }: Props) {
   const [showForm, setShowForm]         = useState(false)
   const [editing, setEditing]           = useState<Lead | undefined>(undefined)
   const [search, setSearch]             = useState('')
-  const [statusFilter, setStatusFilter] = useState<LeadStatus | 'todos'>('todos')
+  const [statusFilter, setStatusFilter] = useState<LeadStage | 'todos'>('todos')
   const [channelFilter, setChannelFilter] = useState<LeadChannel | 'todos'>('todos')
   const [converting, setConverting]     = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     return initialLeads.filter(l => {
-      if (statusFilter !== 'todos' && l.status !== statusFilter) return false
+      if (statusFilter !== 'todos' && l.stage !== statusFilter) return false
       if (channelFilter !== 'todos' && l.source_channel !== channelFilter) return false
       if (search) {
         const q = search.toLowerCase()
@@ -63,9 +67,9 @@ export function LeadsView({ initialLeads }: Props) {
 
   const stats = useMemo(() => ({
     total:      initialLeads.length,
-    nuevos:     initialLeads.filter(l => l.status === 'nuevo').length,
-    convertidos: initialLeads.filter(l => l.status === 'convertido').length,
-    perdidos:   initialLeads.filter(l => l.status === 'perdido').length,
+    nuevos:     initialLeads.filter(l => l.stage === 'new').length,
+    convertidos: initialLeads.filter(l => l.stage === 'operated').length,
+    perdidos:   initialLeads.filter(l => l.stage === 'lost').length,
   }), [initialLeads])
 
   function handleSuccess() {
@@ -128,10 +132,10 @@ export function LeadsView({ initialLeads }: Props) {
           </button>
         </div>
 
-        {/* Filtro estado */}
+        {/* Filtro etapa */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <Filter className="w-3 h-3 text-slate-600 mr-1" />
-          {STATUS_FILTERS.map(s => (
+          {STAGE_FILTERS.map(s => (
             <button
               key={s.value}
               onClick={() => setStatusFilter(s.value)}
@@ -145,7 +149,7 @@ export function LeadsView({ initialLeads }: Props) {
               {s.label}
               {s.value !== 'todos' && (
                 <span className="ml-1.5 text-slate-500">
-                  ({initialLeads.filter(l => l.status === s.value).length})
+                  ({initialLeads.filter(l => l.stage === s.value).length})
                 </span>
               )}
             </button>
@@ -210,7 +214,7 @@ export function LeadsView({ initialLeads }: Props) {
                     key={lead.id}
                     className={cn(
                       'border-b border-slate-800/60 transition-colors hover:bg-slate-800/20',
-                      lead.converted_to_client && 'bg-green-500/5'
+                      lead.stage === 'operated' && 'bg-green-500/5'
                     )}
                   >
                     <td className="py-3 px-4">
@@ -228,20 +232,20 @@ export function LeadsView({ initialLeads }: Props) {
                       <span className="line-clamp-1">{lead.email || '—'}</span>
                     </td>
                     <td className="py-3 px-4">
-                      <LeadChannelBadge channel={lead.source_channel} />
+                      <LeadChannelBadge channel={lead.source_channel as LeadChannel | null} />
                     </td>
                     <td className="py-3 px-4 text-slate-500 text-xs max-w-[140px]">
                       <span className="line-clamp-1">{lead.campaign_name || '—'}</span>
                     </td>
                     <td className="py-3 px-4">
-                      <LeadStatusBadge status={lead.status} />
+                      <LeadStatusBadge status={lead.stage} />
                     </td>
                     <td className="py-3 px-4 text-slate-500 font-mono text-xs whitespace-nowrap">
                       {new Date(lead.created_at).toLocaleDateString('es-CL')}
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1.5">
-                        {!lead.converted_to_client && lead.status !== 'perdido' && (
+                        {lead.stage !== 'operated' && lead.stage !== 'lost' && (
                           <button
                             onClick={ev => handleConvert(lead.id, ev)}
                             disabled={converting === lead.id}

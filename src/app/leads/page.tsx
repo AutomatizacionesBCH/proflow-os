@@ -27,7 +27,7 @@ export default async function LeadsPage() {
 
   return (
     <PageShell title="Leads" description="Pipeline de prospectos comerciales">
-      <LeadsView initialLeads={(data ?? []) as Lead[]} />
+      <LeadsView initialLeads={(data ?? []) as unknown as Lead[]} />
     </PageShell>
   )
 }

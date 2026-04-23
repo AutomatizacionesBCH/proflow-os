@@ -89,6 +89,7 @@ export type Lead = {
   id: string
   full_name: string
   phone: string | null
+  email: string | null
   source_channel: LeadChannel | null
   campaign_name: string | null
   status: LeadStatus

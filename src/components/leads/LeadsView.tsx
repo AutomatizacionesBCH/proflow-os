@@ -53,7 +53,8 @@ export function LeadsView({ initialLeads }: Props) {
         if (
           !l.full_name.toLowerCase().includes(q) &&
           !(l.campaign_name?.toLowerCase().includes(q)) &&
-          !(l.phone?.toLowerCase().includes(q))
+          !(l.phone?.toLowerCase().includes(q)) &&
+          !(l.email?.toLowerCase().includes(q))
         ) return false
       }
       return true
@@ -177,7 +178,7 @@ export function LeadsView({ initialLeads }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
-                {['Nombre', 'Teléfono', 'Canal', 'Campaña', 'Estado', 'Registrado', 'Acciones'].map(h => (
+                {['Nombre', 'Teléfono', 'Email', 'Canal', 'Campaña', 'Estado', 'Registrado', 'Acciones'].map(h => (
                   <th
                     key={h}
                     className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap"
@@ -190,7 +191,7 @@ export function LeadsView({ initialLeads }: Props) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
+                  <td colSpan={8} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center">
                         <Users className="w-4 h-4 text-slate-600" />
@@ -222,6 +223,9 @@ export function LeadsView({ initialLeads }: Props) {
                     </td>
                     <td className="py-3 px-4 text-slate-400 text-xs font-mono">
                       {lead.phone || '—'}
+                    </td>
+                    <td className="py-3 px-4 text-slate-400 text-xs max-w-[180px]">
+                      <span className="line-clamp-1">{lead.email || '—'}</span>
                     </td>
                     <td className="py-3 px-4">
                       <LeadChannelBadge channel={lead.source_channel} />

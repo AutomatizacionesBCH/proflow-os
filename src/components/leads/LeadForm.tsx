@@ -54,29 +54,39 @@ function Field({ title, children, hint }: { title: string; children: React.React
 
 type Props = { onClose: () => void; onSuccess: () => void; editing?: Lead }
 
+const RESPONSABLES = ['Magda', 'Alberto']
+
 type FormValues = {
-  full_name:      string
-  phone:          string
-  email:          string
-  source_channel: LeadChannel | null
-  campaign_name:  string
-  stage:          LeadStage
-  notes:          string
+  full_name:       string
+  phone:           string
+  email:           string
+  source_channel:  LeadChannel | null
+  campaign_name:   string
+  stage:           LeadStage
+  assigned_to:     string
+  heat_score:      number
+  next_action:     string
+  next_action_due: string
+  notes:           string
 }
 
 function initialValues(editing?: Lead): FormValues {
   if (editing) {
     return {
-      full_name:      editing.full_name,
-      phone:          editing.phone ?? '',
-      email:          editing.email ?? '',
-      source_channel: (editing.source_channel as LeadChannel) ?? null,
-      campaign_name:  editing.campaign_name ?? '',
-      stage:          editing.stage,
-      notes:          editing.notes ?? '',
+      full_name:       editing.full_name,
+      phone:           editing.phone ?? '',
+      email:           editing.email ?? '',
+      source_channel:  (editing.source_channel as LeadChannel) ?? null,
+      campaign_name:   editing.campaign_name ?? '',
+      stage:           editing.stage,
+      assigned_to:     editing.assigned_to ?? '',
+      heat_score:      editing.heat_score ?? 0,
+      next_action:     editing.next_action ?? '',
+      next_action_due: editing.next_action_due_at ? editing.next_action_due_at.slice(0, 10) : '',
+      notes:           editing.notes ?? '',
     }
   }
-  return { full_name: '', phone: '', email: '', source_channel: null, campaign_name: '', stage: 'new', notes: '' }
+  return { full_name: '', phone: '', email: '', source_channel: null, campaign_name: '', stage: 'new', assigned_to: '', heat_score: 0, next_action: '', next_action_due: '', notes: '' }
 }
 
 export function LeadForm({ onClose, onSuccess, editing }: Props) {
@@ -94,13 +104,17 @@ export function LeadForm({ onClose, onSuccess, editing }: Props) {
     setError(null)
 
     const input: LeadInput = {
-      full_name:      form.full_name.trim(),
-      phone:          form.phone.trim(),
-      email:          form.email.trim(),
-      source_channel: form.source_channel,
-      campaign_name:  form.campaign_name.trim(),
-      stage:          form.stage,
-      notes:          form.notes.trim(),
+      full_name:           form.full_name.trim(),
+      phone:               form.phone.trim(),
+      email:               form.email.trim(),
+      source_channel:      form.source_channel,
+      campaign_name:       form.campaign_name.trim(),
+      stage:               form.stage,
+      assigned_to:         form.assigned_to || null,
+      heat_score:          form.heat_score,
+      next_action:         form.next_action.trim() || null,
+      next_action_due_at:  form.next_action_due || null,
+      notes:               form.notes.trim(),
     }
 
     startTransition(async () => {
@@ -188,6 +202,53 @@ export function LeadForm({ onClose, onSuccess, editing }: Props) {
               ))}
             </div>
           </Field>
+
+          <Field title="Responsable">
+            <div className="flex gap-2">
+              {RESPONSABLES.map(r => (
+                <button key={r} type="button"
+                  onClick={() => set('assigned_to', form.assigned_to === r ? '' : r)}
+                  className={cn(
+                    'flex-1 py-2 text-xs font-medium rounded-md border transition-colors',
+                    form.assigned_to === r
+                      ? 'bg-violet-600/20 text-violet-400 border-violet-500/30'
+                      : 'text-slate-500 border-slate-700 hover:border-slate-600 hover:text-slate-400'
+                  )}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <Field title="Heat Score" hint="0 = frío, 10 = muy caliente">
+            <div className="flex items-center gap-3">
+              <input type="range" min={0} max={10} step={1}
+                value={form.heat_score}
+                onChange={e => set('heat_score', Number(e.target.value))}
+                className="flex-1 accent-orange-500"
+              />
+              <span className={cn(
+                'w-8 text-center text-sm font-bold font-mono',
+                form.heat_score >= 8 ? 'text-red-400' :
+                form.heat_score >= 6 ? 'text-orange-400' :
+                form.heat_score >= 4 ? 'text-amber-400' : 'text-slate-500'
+              )}>
+                {form.heat_score}
+              </span>
+            </div>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field title="Próxima acción">
+              <input className={inputCls} placeholder="Ej: Llamar para cotización"
+                value={form.next_action} onChange={e => set('next_action', e.target.value)} />
+            </Field>
+            <Field title="Fecha límite">
+              <input type="date" className={inputCls}
+                value={form.next_action_due} onChange={e => set('next_action_due', e.target.value)} />
+            </Field>
+          </div>
 
           <Field title="Notas">
             <textarea className={cn(inputCls, 'resize-none h-24')}

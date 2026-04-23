@@ -2,16 +2,16 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, Filter, Users, CheckCircle2 } from 'lucide-react'
+import { Plus, Search, Filter, Users, CheckCircle2, Flame, Clock, Zap, Moon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Lead, LeadStage, LeadChannel } from '@/types'
 import { LeadStatusBadge } from './LeadStatusBadge'
 import { LeadChannelBadge } from './LeadChannelBadge'
 import { LeadForm } from './LeadForm'
 import { convertLead } from '@/app/leads/actions'
-import { KpiBox } from '@/components/ui/KpiBox'
 import { TableScroll } from '@/components/ui/TableScroll'
 
+// ── Filtros de etapa ──────────────────────────────────────────
 const STAGE_FILTERS: { value: LeadStage | 'todos'; label: string }[] = [
   { value: 'todos',             label: 'Todos' },
   { value: 'new',               label: 'Nuevo' },
@@ -35,42 +35,99 @@ const CHANNEL_FILTERS: { value: LeadChannel | 'todos'; label: string }[] = [
   { value: 'otro',       label: 'Otro' },
 ]
 
+// ── Tabs rápidos ──────────────────────────────────────────────
+type QuickTab = 'hot' | 'magda' | 'alberto' | null
+
+const QUICK_TABS: { id: QuickTab; label: string; color: string; filter: (l: Lead) => boolean }[] = [
+  {
+    id: 'hot',
+    label: '🔥 Hot Now',
+    color: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+    filter: l => l.heat_score >= 7 || l.priority_label === 'hot',
+  },
+  {
+    id: 'magda',
+    label: '👤 Pendientes Magda',
+    color: 'bg-violet-500/10 text-violet-400 border-violet-500/30',
+    filter: l =>
+      (l.assigned_to ?? '').toLowerCase().includes('magda') &&
+      !['operated', 'lost'].includes(l.stage),
+  },
+  {
+    id: 'alberto',
+    label: '🧑 Listos para Alberto',
+    color: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    filter: l =>
+      (l.assigned_to ?? '').toLowerCase().includes('alberto') &&
+      ['ready_to_operate', 'ready_to_schedule'].includes(l.stage),
+  },
+]
+
+// ── Heat score badge ──────────────────────────────────────────
+function HeatBadge({ score }: { score: number }) {
+  const cls =
+    score >= 8 ? 'bg-red-500/15 text-red-400 border-red-500/30' :
+    score >= 6 ? 'bg-orange-500/15 text-orange-400 border-orange-500/30' :
+    score >= 4 ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
+    score > 0  ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' :
+                 'bg-slate-800 text-slate-600 border-slate-700'
+  return (
+    <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono font-medium border', cls)}>
+      {score > 0 && <Flame className="w-2.5 h-2.5" />}
+      {score}
+    </span>
+  )
+}
+
 type Props = { initialLeads: Lead[] }
 
 export function LeadsView({ initialLeads }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
-  const [showForm, setShowForm]         = useState(false)
-  const [editing, setEditing]           = useState<Lead | undefined>(undefined)
-  const [search, setSearch]             = useState('')
-  const [statusFilter, setStatusFilter] = useState<LeadStage | 'todos'>('todos')
+  const [showForm, setShowForm]           = useState(false)
+  const [editing, setEditing]             = useState<Lead | undefined>(undefined)
+  const [search, setSearch]               = useState('')
+  const [stageFilter, setStageFilter]     = useState<LeadStage | 'todos'>('todos')
   const [channelFilter, setChannelFilter] = useState<LeadChannel | 'todos'>('todos')
-  const [converting, setConverting]     = useState<string | null>(null)
+  const [quickTab, setQuickTab]           = useState<QuickTab>(null)
+  const [converting, setConverting]       = useState<string | null>(null)
 
+  // ── Stats para KPIs ────────────────────────────────────────
+  const stats = useMemo(() => ({
+    total:         initialLeads.length,
+    calientes:     initialLeads.filter(l => l.heat_score >= 7 || l.priority_label === 'hot').length,
+    pendMagda:     initialLeads.filter(l =>
+      (l.assigned_to ?? '').toLowerCase().includes('magda') && !['operated','lost'].includes(l.stage)
+    ).length,
+    listosOperar:  initialLeads.filter(l => l.stage === 'ready_to_operate').length,
+    dormidos:      initialLeads.filter(l => l.stage === 'dormant').length,
+  }), [initialLeads])
+
+  // ── Filtrado ────────────────────────────────────────────────
   const filtered = useMemo(() => {
     return initialLeads.filter(l => {
-      if (statusFilter !== 'todos' && l.stage !== statusFilter) return false
-      if (channelFilter !== 'todos' && l.source_channel !== channelFilter) return false
+      // Tab rápido tiene prioridad
+      if (quickTab) {
+        const tab = QUICK_TABS.find(t => t.id === quickTab)
+        if (tab && !tab.filter(l)) return false
+      } else {
+        if (stageFilter !== 'todos' && l.stage !== stageFilter) return false
+        if (channelFilter !== 'todos' && l.source_channel !== channelFilter) return false
+      }
       if (search) {
         const q = search.toLowerCase()
         if (
           !l.full_name.toLowerCase().includes(q) &&
           !(l.campaign_name?.toLowerCase().includes(q)) &&
           !(l.phone?.toLowerCase().includes(q)) &&
-          !(l.email?.toLowerCase().includes(q))
+          !(l.email?.toLowerCase().includes(q)) &&
+          !(l.assigned_to?.toLowerCase().includes(q))
         ) return false
       }
       return true
     })
-  }, [initialLeads, statusFilter, channelFilter, search])
-
-  const stats = useMemo(() => ({
-    total:      initialLeads.length,
-    nuevos:     initialLeads.filter(l => l.stage === 'new').length,
-    convertidos: initialLeads.filter(l => l.stage === 'operated').length,
-    perdidos:   initialLeads.filter(l => l.stage === 'lost').length,
-  }), [initialLeads])
+  }, [initialLeads, stageFilter, channelFilter, quickTab, search])
 
   function handleSuccess() {
     setShowForm(false)
@@ -92,6 +149,12 @@ export function LeadsView({ initialLeads }: Props) {
     startTransition(() => router.refresh())
   }
 
+  function activateQuickTab(id: QuickTab) {
+    setQuickTab(prev => prev === id ? null : id)
+    setStageFilter('todos')
+    setChannelFilter('todos')
+  }
+
   return (
     <>
       {showForm && (
@@ -102,22 +165,78 @@ export function LeadsView({ initialLeads }: Props) {
         />
       )}
 
-      {/* KPIs */}
+      {/* ── KPIs ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <KpiBox label="Total leads"  value={String(stats.total)} />
-        <KpiBox label="Nuevos"       value={String(stats.nuevos)}       warn={stats.nuevos > 0} />
-        <KpiBox label="Convertidos"  value={String(stats.convertidos)}  positive={stats.convertidos > 0} />
-        <KpiBox label="Perdidos"     value={String(stats.perdidos)}     danger={stats.perdidos > 0} />
+        <KpiCard
+          icon={<Flame className="w-4 h-4 text-orange-400" />}
+          label="Leads calientes"
+          value={stats.calientes}
+          color="orange"
+          onClick={() => activateQuickTab('hot')}
+          active={quickTab === 'hot'}
+        />
+        <KpiCard
+          icon={<Clock className="w-4 h-4 text-violet-400" />}
+          label="Pendientes Magda"
+          value={stats.pendMagda}
+          color="violet"
+          onClick={() => activateQuickTab('magda')}
+          active={quickTab === 'magda'}
+        />
+        <KpiCard
+          icon={<Zap className="w-4 h-4 text-green-400" />}
+          label="Listos para operar"
+          value={stats.listosOperar}
+          color="green"
+          onClick={() => { setQuickTab(null); setStageFilter('ready_to_operate') }}
+          active={stageFilter === 'ready_to_operate'}
+        />
+        <KpiCard
+          icon={<Moon className="w-4 h-4 text-slate-400" />}
+          label="Dormidos reactivables"
+          value={stats.dormidos}
+          color="slate"
+          onClick={() => { setQuickTab(null); setStageFilter('dormant') }}
+          active={stageFilter === 'dormant'}
+        />
       </div>
 
-      {/* Filtros */}
+      {/* ── Tabs rápidos ── */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-slate-600 mr-1">Vista rápida:</span>
+        {QUICK_TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => activateQuickTab(t.id)}
+            className={cn(
+              'px-3 py-1.5 text-xs font-medium rounded-md border transition-colors',
+              quickTab === t.id ? t.color : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-300'
+            )}
+          >
+            {t.label}
+            <span className="ml-1.5 text-slate-500">
+              ({initialLeads.filter(t.filter).length})
+            </span>
+          </button>
+        ))}
+        {(quickTab || stageFilter !== 'todos' || channelFilter !== 'todos') && (
+          <button
+            onClick={() => { setQuickTab(null); setStageFilter('todos'); setChannelFilter('todos') }}
+            className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300 border border-slate-700 rounded-md transition-colors"
+          >
+            ✕ Limpiar filtros
+          </button>
+        )}
+      </div>
+
+      {/* ── Filtros ── */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex items-center gap-2 flex-1 bg-slate-800/60 border border-slate-700 rounded-md px-3 py-2 focus-within:border-slate-600 transition-colors">
             <Search className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
             <input
               type="text"
-              placeholder="Buscar por nombre, teléfono o campaña..."
+              placeholder="Buscar por nombre, teléfono, email o responsable..."
               className="bg-transparent text-sm text-slate-300 placeholder:text-slate-600 outline-none w-full"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -138,10 +257,10 @@ export function LeadsView({ initialLeads }: Props) {
           {STAGE_FILTERS.map(s => (
             <button
               key={s.value}
-              onClick={() => setStatusFilter(s.value)}
+              onClick={() => { setQuickTab(null); setStageFilter(s.value) }}
               className={cn(
                 'px-3 py-1 text-xs rounded-md border transition-colors',
-                statusFilter === s.value
+                stageFilter === s.value && !quickTab
                   ? 'bg-blue-600/20 text-blue-400 border-blue-500/30'
                   : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-300'
               )}
@@ -158,14 +277,14 @@ export function LeadsView({ initialLeads }: Props) {
 
         {/* Filtro canal */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="w-3 h-3 mr-1 text-slate-600 text-xs">canal</span>
+          <span className="text-xs text-slate-600 mr-1">canal</span>
           {CHANNEL_FILTERS.map(c => (
             <button
               key={c.value}
-              onClick={() => setChannelFilter(c.value)}
+              onClick={() => { setQuickTab(null); setChannelFilter(c.value) }}
               className={cn(
                 'px-3 py-1 text-xs rounded-md border transition-colors',
-                channelFilter === c.value
+                channelFilter === c.value && !quickTab
                   ? 'bg-purple-600/20 text-purple-400 border-purple-500/30'
                   : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-300'
               )}
@@ -176,17 +295,14 @@ export function LeadsView({ initialLeads }: Props) {
         </div>
       </div>
 
-      {/* Tabla */}
+      {/* ── Tabla ── */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <TableScroll>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
-                {['Nombre', 'Teléfono', 'Email', 'Canal', 'Campaña', 'Estado', 'Registrado', 'Acciones'].map(h => (
-                  <th
-                    key={h}
-                    className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap"
-                  >
+                {['Nombre', 'Teléfono', 'Responsable', '🔥', 'Canal', 'Próxima acción', 'Etapa', 'Registrado', 'Acciones'].map(h => (
+                  <th key={h} className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
                 ))}
@@ -195,15 +311,13 @@ export function LeadsView({ initialLeads }: Props) {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-16 text-center">
+                  <td colSpan={9} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center">
                         <Users className="w-4 h-4 text-slate-600" />
                       </div>
                       <p className="text-sm text-slate-500">
-                        {initialLeads.length === 0
-                          ? 'No hay leads aún. Crea el primero.'
-                          : 'Ningún lead coincide con los filtros.'}
+                        {initialLeads.length === 0 ? 'No hay leads aún.' : 'Ningún lead coincide con los filtros.'}
                       </p>
                     </div>
                   </td>
@@ -214,46 +328,72 @@ export function LeadsView({ initialLeads }: Props) {
                     key={lead.id}
                     className={cn(
                       'border-b border-slate-800/60 transition-colors hover:bg-slate-800/20',
-                      lead.stage === 'operated' && 'bg-green-500/5'
+                      lead.stage === 'operated' && 'bg-green-500/5',
+                      (lead.heat_score >= 7 || lead.priority_label === 'hot') && lead.stage !== 'operated' && 'bg-orange-500/5'
                     )}
                   >
+                    {/* Nombre */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0 text-xs font-medium text-slate-300">
                           {lead.full_name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-medium text-slate-200">{lead.full_name}</span>
+                        <span className="font-medium text-slate-200 whitespace-nowrap">{lead.full_name}</span>
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-slate-400 text-xs font-mono">
+                    {/* Teléfono */}
+                    <td className="py-3 px-4 text-slate-400 text-xs font-mono whitespace-nowrap">
                       {lead.phone || '—'}
                     </td>
-                    <td className="py-3 px-4 text-slate-400 text-xs max-w-[180px]">
-                      <span className="line-clamp-1">{lead.email || '—'}</span>
+                    {/* Responsable */}
+                    <td className="py-3 px-4 text-xs whitespace-nowrap">
+                      {lead.assigned_to
+                        ? <span className="px-2 py-0.5 rounded-md bg-slate-700/60 text-slate-300 border border-slate-600/40">{lead.assigned_to}</span>
+                        : <span className="text-slate-600">—</span>}
                     </td>
+                    {/* Heat score */}
+                    <td className="py-3 px-4">
+                      <HeatBadge score={lead.heat_score} />
+                    </td>
+                    {/* Canal */}
                     <td className="py-3 px-4">
                       <LeadChannelBadge channel={lead.source_channel as LeadChannel | null} />
                     </td>
-                    <td className="py-3 px-4 text-slate-500 text-xs max-w-[140px]">
-                      <span className="line-clamp-1">{lead.campaign_name || '—'}</span>
+                    {/* Próxima acción */}
+                    <td className="py-3 px-4 max-w-[180px]">
+                      {lead.next_action ? (
+                        <div>
+                          <p className="text-xs text-slate-300 line-clamp-1">{lead.next_action}</p>
+                          {lead.next_action_due_at && (
+                            <p className="text-xs text-slate-600 mt-0.5">
+                              {new Date(lead.next_action_due_at).toLocaleDateString('es-CL')}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-slate-600 text-xs">—</span>
+                      )}
                     </td>
+                    {/* Etapa */}
                     <td className="py-3 px-4">
                       <LeadStatusBadge status={lead.stage} />
                     </td>
+                    {/* Registrado */}
                     <td className="py-3 px-4 text-slate-500 font-mono text-xs whitespace-nowrap">
                       {new Date(lead.created_at).toLocaleDateString('es-CL')}
                     </td>
+                    {/* Acciones */}
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1.5">
                         {lead.stage !== 'operated' && lead.stage !== 'lost' && (
                           <button
                             onClick={ev => handleConvert(lead.id, ev)}
                             disabled={converting === lead.id}
-                            title="Marcar como convertido"
+                            title="Marcar como operado"
                             className="text-xs text-green-500 hover:text-green-400 border border-green-500/30 hover:border-green-500/50 rounded-md px-2 py-1 transition-colors disabled:opacity-50 flex items-center gap-1"
                           >
                             <CheckCircle2 className="w-3 h-3" />
-                            {converting === lead.id ? '…' : 'Convertir'}
+                            {converting === lead.id ? '…' : 'Operar'}
                           </button>
                         )}
                         <button
@@ -284,3 +424,36 @@ export function LeadsView({ initialLeads }: Props) {
   )
 }
 
+// ── KpiCard local ─────────────────────────────────────────────
+function KpiCard({
+  icon, label, value, color, onClick, active,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: number
+  color: 'orange' | 'violet' | 'green' | 'slate'
+  onClick: () => void
+  active: boolean
+}) {
+  const ring = {
+    orange: 'border-orange-500/40 bg-orange-500/5',
+    violet: 'border-violet-500/40 bg-violet-500/5',
+    green:  'border-green-500/40  bg-green-500/5',
+    slate:  'border-slate-600/40  bg-slate-800/40',
+  }
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'text-left p-4 rounded-xl border transition-all',
+        active ? ring[color] : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+      )}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="w-7 h-7 rounded-md bg-slate-800 flex items-center justify-center">{icon}</div>
+      </div>
+      <p className="text-2xl font-bold text-slate-100 tabular-nums">{value}</p>
+      <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+    </button>
+  )
+}

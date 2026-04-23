@@ -2,23 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { LeadChannel } from '@/types'
 
-// Eventos que nos interesan — ignoramos el resto silenciosamente
-const HANDLED_EVENTS = ['contact.created', 'message.received']
+// Solo capturamos cambios de etapa hacia las 4 categorías de interés
+const TARGET_STAGES: Record<string, { label: string; status: 'nuevo' | 'en_seguimiento' | 'convertido' }> = {
+  '5b79a21f-1b1c-4989-ad87-0d1703f3a528': { label: 'Interesado',        status: 'nuevo'          },
+  '9426035f-54fe-411d-a2fd-5ec5cf26e53c': { label: 'Ganados',           status: 'convertido'     },
+  'ef629e7e-059a-489a-bfd4-5a899581c314': { label: 'Sobrecupos',        status: 'en_seguimiento' },
+  '8bef9ace-fd76-4629-b638-94aa2dae2db7': { label: 'Clientes +5000 USD', status: 'convertido'    },
+}
 
-// Mapea el canal Vambe al tipo LeadChannel de ProFlow OS
-function mapChannel(vambeChannel?: string): { channel: LeadChannel; campaign: string } {
-  const raw = (vambeChannel ?? '').toLowerCase()
-  if (raw.includes('instagram') || raw.includes('meta') || raw.includes('facebook')) {
-    return { channel: 'Meta', campaign: 'Instagram (Vambe)' }
-  }
-  if (raw.includes('google')) {
-    return { channel: 'otro', campaign: 'Google Ads (Vambe)' }
-  }
-  if (raw.includes('tiktok')) {
-    return { channel: 'TikTok', campaign: 'TikTok (Vambe)' }
-  }
-  // Sin canal identificable — marcamos Meta por defecto (canal principal)
-  return { channel: 'Meta', campaign: 'Vambe' }
+const PLATFORM_CHANNEL: Record<string, LeadChannel> = {
+  instagram: 'Meta', facebook: 'Meta', meta: 'Meta',
+  tiktok: 'TikTok',
+  linkedin: 'LinkedIn',
+}
+
+function mapChannel(platform?: string): LeadChannel {
+  return PLATFORM_CHANNEL[(platform ?? '').toLowerCase()] ?? 'otro'
 }
 
 export async function POST(req: NextRequest) {
@@ -42,15 +41,21 @@ export async function POST(req: NextRequest) {
     data?: Record<string, unknown>
   }
 
-  // 3. Ignorar eventos que no manejamos
-  if (!HANDLED_EVENTS.includes(type)) {
+  // 3. Solo procesar stage.changed hacia etapas objetivo
+  if (type !== 'stage.changed') {
     return NextResponse.json({ ok: true, skipped: true })
   }
 
-  const name      = String(data?.name ?? '').trim()
-  const phone     = String(data?.fromNumber ?? data?.phone ?? '').trim()
-  const vambeCh   = String(data?.channel ?? data?.channelType ?? '')
-  const { channel, campaign } = mapChannel(vambeCh)
+  const newStageId = String(data?.new_stage_id ?? '')
+  const stage = TARGET_STAGES[newStageId]
+  if (!stage) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'stage_not_targeted' })
+  }
+
+  const name    = String(data?.contact_name ?? data?.name ?? '').trim()
+  const phone   = String(data?.phone ?? '').trim()
+  const platform = String(data?.platform ?? '')
+  const channel = mapChannel(platform)
 
   if (!name && !phone) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'no_contact_info' })
@@ -73,17 +78,18 @@ export async function POST(req: NextRequest) {
 
   // 5. Crear lead
   const notes = [
-    `Origen: Vambe (${type})`,
+    `Importado desde Vambe`,
+    `Etapa: ${stage.label}`,
+    platform ? `Plataforma: ${platform}` : null,
     aiContactId ? `Vambe ID: ${aiContactId}` : null,
-    vambeCh ? `Canal Vambe: ${vambeCh}` : null,
   ].filter(Boolean).join('\n')
 
   const { error } = await supabase.from('leads').insert({
     full_name:      name || 'Sin nombre',
     phone:          phone || null,
     source_channel: channel,
-    campaign_name:  campaign,
-    status:         'nuevo',
+    campaign_name:  `${stage.label} (Vambe)`,
+    status:         stage.status,
     notes,
   })
 

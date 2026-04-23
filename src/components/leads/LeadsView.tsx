@@ -155,11 +155,26 @@ export function LeadsView({ initialLeads }: Props) {
     startTransition(() => router.refresh())
   }
 
-  function activateQuickTab(id: QuickTab) {
-    setQuickTab(prev => prev === id ? null : id)
+  function resetFilters() {
+    setQuickTab(null)
     setStageFilter('todos')
     setChannelFilter('todos')
     setPriorityFilter(null)
+  }
+
+  function activateQuickTab(id: QuickTab) {
+    resetFilters()
+    setQuickTab(prev => prev === id ? null : id)
+  }
+
+  function activatePriorityFilter(label: string) {
+    resetFilters()
+    setPriorityFilter(prev => prev === label ? null : label)
+  }
+
+  function activateStageFilter(stage: LeadStage | 'todos') {
+    resetFilters()
+    setStageFilter(stage)
   }
 
   async function handleRecalculate() {
@@ -207,7 +222,7 @@ export function LeadsView({ initialLeads }: Props) {
           label="🟡 Warm"
           value={stats.warm}
           color="amber"
-          onClick={() => { setQuickTab(null); setPriorityFilter('warm') }}
+          onClick={() => activatePriorityFilter('warm')}
           active={priorityFilter === 'warm' && !quickTab}
         />
         <KpiCard
@@ -215,7 +230,7 @@ export function LeadsView({ initialLeads }: Props) {
           label="🔁 Follow-up"
           value={stats.follow_up}
           color="blue"
-          onClick={() => { setQuickTab(null); setPriorityFilter('follow_up') }}
+          onClick={() => activatePriorityFilter('follow_up')}
           active={priorityFilter === 'follow_up' && !quickTab}
         />
         <KpiCard
@@ -223,7 +238,7 @@ export function LeadsView({ initialLeads }: Props) {
           label="🧊 Cold"
           value={stats.cold}
           color="slate"
-          onClick={() => { setQuickTab(null); setPriorityFilter('cold') }}
+          onClick={() => activatePriorityFilter('cold')}
           active={priorityFilter === 'cold' && !quickTab}
         />
       </div>
@@ -241,7 +256,7 @@ export function LeadsView({ initialLeads }: Props) {
           <p className="text-xs text-slate-500 mt-0.5">Pendientes Magda</p>
         </button>
         <button
-          onClick={() => { setQuickTab(null); setStageFilter('ready_to_operate') }}
+          onClick={() => activateStageFilter('ready_to_operate')}
           className={cn(
             'text-left px-4 py-3 rounded-xl border transition-all',
             stageFilter === 'ready_to_operate' && !quickTab ? 'border-green-500/40 bg-green-500/5' : 'border-slate-800 bg-slate-900 hover:border-slate-700'
@@ -251,7 +266,7 @@ export function LeadsView({ initialLeads }: Props) {
           <p className="text-xs text-slate-500 mt-0.5">Listos para operar</p>
         </button>
         <button
-          onClick={() => { setQuickTab(null); setStageFilter('dormant') }}
+          onClick={() => activateStageFilter('dormant')}
           className={cn(
             'text-left px-4 py-3 rounded-xl border transition-all',
             stageFilter === 'dormant' && !quickTab ? 'border-slate-600/40 bg-slate-800/40' : 'border-slate-800 bg-slate-900 hover:border-slate-700'
@@ -282,7 +297,7 @@ export function LeadsView({ initialLeads }: Props) {
         ))}
         {(quickTab || stageFilter !== 'todos' || channelFilter !== 'todos' || priorityFilter) && (
           <button
-            onClick={() => { setQuickTab(null); setStageFilter('todos'); setChannelFilter('todos'); setPriorityFilter(null) }}
+            onClick={resetFilters}
             className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300 border border-slate-700 rounded-md transition-colors"
           >
             ✕ Limpiar filtros
@@ -318,7 +333,7 @@ export function LeadsView({ initialLeads }: Props) {
           {STAGE_FILTERS.map(s => (
             <button
               key={s.value}
-              onClick={() => { setQuickTab(null); setStageFilter(s.value) }}
+              onClick={() => activateStageFilter(s.value)}
               className={cn(
                 'px-3 py-1 text-xs rounded-md border transition-colors',
                 stageFilter === s.value && !quickTab
@@ -342,7 +357,7 @@ export function LeadsView({ initialLeads }: Props) {
           {CHANNEL_FILTERS.map(c => (
             <button
               key={c.value}
-              onClick={() => { setQuickTab(null); setChannelFilter(c.value) }}
+              onClick={() => { resetFilters(); setChannelFilter(c.value) }}
               className={cn(
                 'px-3 py-1 text-xs rounded-md border transition-colors',
                 channelFilter === c.value && !quickTab

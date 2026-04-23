@@ -19,10 +19,6 @@ const NEXT_BEST_ACTION: Record<LeadStage, string> = {
   lost:              'Archivar lead',
 }
 
-const QUALIFIED_OR_HIGHER: LeadStage[] = [
-  'qualified', 'docs_pending', 'ready_to_schedule', 'ready_to_operate', 'operated',
-]
-
 const ALBERTO_STAGES: LeadStage[] = ['ready_to_schedule', 'ready_to_operate', 'operated']
 
 // Keywords that indicate strong buying intent
@@ -34,21 +30,23 @@ export function calculateLeadScore(lead: Lead): ScoreResult {
   let score = 0
   const now = Date.now()
 
+  // ── Stage score ───────────────────────────────────────────
+  if      (lead.stage === 'operated')          score += 40
+  else if (lead.stage === 'qualified')         score += 30
+  else if (lead.stage === 'contacted')         score += 15
+  else if (lead.stage === 'new' && lead.phone) score += 10
+  else if (lead.stage === 'lost')              score -= 30
+
   // ── Interaction recency ───────────────────────────────────
   if (lead.last_interaction_at) {
     const hours = (now - new Date(lead.last_interaction_at).getTime()) / 3_600_000
-    if (hours <= 2)  score += 20
-    if (hours > 72)  score -= 20
+    if (hours <= 24) score += 20
+    else if (hours <= 72) score += 10
   }
 
-  // ── Stage bonuses ─────────────────────────────────────────
-  if (QUALIFIED_OR_HIGHER.includes(lead.stage)) score += 20
-  if (lead.stage === 'ready_to_operate')         score += 20
-  if (lead.stage === 'ready_to_schedule')        score += 20
-
-  // ── Stage penalties ───────────────────────────────────────
-  if (lead.stage === 'dormant') score -= 20
-  if (lead.stage === 'lost')    score -= 30
+  // ── Contact reachability ──────────────────────────────────
+  if (lead.phone || lead.whatsapp) score += 5
+  else                             score -= 15
 
   // ── Prior conversion bonus ────────────────────────────────
   if (lead.converted_to_client_id) score += 15
@@ -60,16 +58,13 @@ export function calculateLeadScore(lead: Lead): ScoreResult {
     if (NEGATIVE_KEYWORDS.some(kw => n.includes(kw))) score -= 10
   }
 
-  // ── Contact reachability ──────────────────────────────────
-  if (!lead.phone && !lead.whatsapp) score -= 15
-
   // ── Clamp to [0, 100] ─────────────────────────────────────
   const heat_score = Math.max(0, Math.min(100, score))
 
   const priority_label: LeadPriority =
-    heat_score >= 80 ? 'hot' :
-    heat_score >= 60 ? 'warm' :
-    heat_score >= 40 ? 'follow_up' : 'cold'
+    heat_score >= 60 ? 'hot' :
+    heat_score >= 40 ? 'warm' :
+    heat_score >= 20 ? 'follow_up' : 'cold'
 
   const assigned_to_recommendation = ALBERTO_STAGES.includes(lead.stage) ? 'Alberto' : 'Magda'
 

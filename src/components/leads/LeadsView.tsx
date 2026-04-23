@@ -173,6 +173,19 @@ export function LeadsView({ initialLeads }: Props) {
         />
       )}
 
+      {/* ── Header con botón recalcular ── */}
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-500">{initialLeads.length} leads en total</p>
+        <button
+          onClick={handleRecalculate}
+          disabled={recalculating}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-slate-500 rounded-lg transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={cn('w-4 h-4 text-orange-400', recalculating && 'animate-spin')} />
+          {recalculating ? 'Calculando scores…' : 'Recalcular scores'}
+        </button>
+      </div>
+
       {/* ── KPIs ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard
@@ -250,14 +263,6 @@ export function LeadsView({ initialLeads }: Props) {
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <button
-            onClick={handleRecalculate}
-            disabled={recalculating}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-md transition-colors flex-shrink-0 disabled:opacity-50"
-          >
-            <RefreshCw className={cn('w-4 h-4', recalculating && 'animate-spin')} />
-            {recalculating ? 'Calculando…' : 'Recalcular scores'}
-          </button>
           <button
             onClick={() => { setEditing(undefined); setShowForm(true) }}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors flex-shrink-0"
@@ -345,7 +350,7 @@ export function LeadsView({ initialLeads }: Props) {
                     className={cn(
                       'border-b border-slate-800/60 transition-colors hover:bg-slate-800/20',
                       lead.stage === 'operated' && 'bg-green-500/5',
-                      (lead.heat_score >= 7 || lead.priority_label === 'hot') && lead.stage !== 'operated' && 'bg-orange-500/5'
+                      (lead.heat_score >= 80 || lead.priority_label === 'hot') && lead.stage !== 'operated' && 'bg-orange-500/5'
                     )}
                   >
                     {/* Nombre */}

@@ -133,7 +133,7 @@ export function LeadsView({ initialLeads }: Props) {
       }
       return true
     })
-  }, [initialLeads, stageFilter, channelFilter, quickTab, search])
+  }, [initialLeads, stageFilter, channelFilter, quickTab, priorityFilter, search])
 
   function handleSuccess() {
     setShowForm(false)

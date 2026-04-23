@@ -23,6 +23,22 @@ $$;
 -- ══════════════════════════════════════════════════════════════
 -- 1. TABLA: leads (reemplaza la básica)
 -- ══════════════════════════════════════════════════════════════
+
+-- Paso 1: guardar datos existentes antes de destruir la tabla
+CREATE TEMP TABLE _leads_backup AS
+SELECT
+  id,
+  full_name,
+  phone,
+  email,
+  source_channel,
+  campaign_name,
+  status,          -- old: nuevo|contactado|en_seguimiento|convertido|perdido
+  client_id,       -- old FK a clients (puede ser uuid válido o null)
+  notes,
+  created_at
+FROM leads;
+
 DROP TABLE IF EXISTS leads CASCADE;
 
 CREATE TABLE leads (
@@ -72,6 +88,69 @@ CREATE TABLE leads (
 CREATE TRIGGER leads_updated_at
   BEFORE UPDATE ON leads
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+-- Paso 2: reinsertar datos preservados con mapeo de columnas
+INSERT INTO leads (
+  id,
+  full_name,
+  phone,
+  email,
+  source_channel,
+  campaign_name,
+  source_platform,
+  external_source_id,
+  stage,
+  converted_to_client_id,
+  notes,
+  created_at,
+  updated_at
+)
+SELECT
+  id,
+  full_name,
+  phone,
+  email,
+  source_channel,
+  campaign_name,
+
+  -- Inferir source_platform desde campaign_name o notes
+  CASE
+    WHEN campaign_name ILIKE '%vambe%' OR notes ILIKE '%vambe%' THEN 'vambe'
+    ELSE 'manual'
+  END,
+
+  -- Extraer Vambe ID desde notes (línea "Vambe ID: <uuid>")
+  CASE
+    WHEN notes ILIKE '%Vambe ID:%'
+    THEN trim(substring(notes FROM 'Vambe ID:\s*([^\n]+)'))
+    ELSE NULL
+  END,
+
+  -- Mapear status → stage
+  CASE status
+    WHEN 'nuevo'          THEN 'new'
+    WHEN 'contactado'     THEN 'contacted'
+    WHEN 'en_seguimiento' THEN 'qualified'
+    WHEN 'convertido'     THEN 'operated'
+    WHEN 'perdido'        THEN 'lost'
+    ELSE 'new'
+  END,
+
+  -- Mapear client_id → converted_to_client_id solo si es uuid válido y existe en clients
+  CASE
+    WHEN client_id IS NOT NULL
+      AND client_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      AND EXISTS (SELECT 1 FROM clients WHERE id = client_id::uuid)
+    THEN client_id::uuid
+    ELSE NULL
+  END,
+
+  notes,
+  created_at,
+  now()
+FROM _leads_backup;
+
+DROP TABLE _leads_backup;
 
 -- Índices
 CREATE INDEX idx_leads_source_platform        ON leads(source_platform);

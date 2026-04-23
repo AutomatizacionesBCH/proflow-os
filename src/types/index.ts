@@ -83,7 +83,12 @@ export type CashPosition = {
 }
 
 export type LeadChannel = 'Meta' | 'TikTok' | 'LinkedIn' | 'Twitter/X' | 'referido' | 'otro'
-export type { Lead, LeadStage, LeadPriority, LeadType, LeadSourcePlatform, STAGE_LABELS } from './leads-marketing.types'
+export type {
+  Lead, LeadStage, LeadPriority, LeadType, LeadSourcePlatform, STAGE_LABELS,
+  Audience, AudienceInsert,
+  Campaign, CampaignInsert, CampaignChannel, CampaignStatus,
+  CampaignMessage, CampaignMessageInsert, MessageStatus,
+} from './leads-marketing.types'
 
 export type MarketingChannel = 'Meta' | 'TikTok' | 'LinkedIn' | 'Twitter/X' | 'referido' | 'otro'
 

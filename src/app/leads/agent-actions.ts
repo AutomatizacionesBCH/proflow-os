@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { analyzeLeadWithAI } from '@/lib/agents/lead-intelligence-agent'
+import { analyzeLeadWithAI, queryLeadsData } from '@/lib/agents/lead-intelligence-agent'
 import type { SavedRecommendation } from '@/types/agent.types'
 
 // ── Analizar un lead individual ───────────────────────────────────────────────
@@ -98,6 +98,24 @@ export async function analyzeAllHotLeadsAction(): Promise<{
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error desconocido'
     console.error('[analyzeAllHotLeadsAction]', message)
+    return { success: false, error: message }
+  }
+}
+
+// ── Consulta libre sobre el pipeline ─────────────────────────────────────────
+export async function queryLeadsWithAIAction(query: string): Promise<{
+  success:         boolean
+  answer?:         string
+  not_applicable?: boolean
+  error?:          string
+}> {
+  try {
+    if (!query.trim()) return { success: false, error: 'La consulta no puede estar vacía' }
+    const result = await queryLeadsData(query)
+    return { success: true, ...result }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error desconocido'
+    console.error('[queryLeadsWithAIAction]', message)
     return { success: false, error: message }
   }
 }

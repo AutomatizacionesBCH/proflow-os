@@ -194,3 +194,76 @@ export async function analyzeLeadWithAI(
   const recommendation = await callOpenAIAPI(userMessage)
   return { ...recommendation, lead_name: lead.full_name as string }
 }
+
+// ── Consulta libre sobre el pipeline ─────────────────────────────────────────
+export async function queryLeadsData(
+  userQuery: string
+): Promise<{ answer: string; not_applicable: boolean }> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) throw new Error('OPENAI_API_KEY no está configurada')
+
+  const supabase = await createClient()
+  const db = supabase as any
+
+  const { data: leads } = await db
+    .from('leads')
+    .select('full_name, heat_score, priority_label, stage, source_channel, assigned_to, created_at, last_interaction_at')
+    .order('heat_score', { ascending: false })
+    .limit(60)
+
+  const today = new Date().toLocaleDateString('es-CL', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  })
+
+  const systemPrompt = `Eres un asistente analítico de ProFlow OS. Fecha actual: ${today}.
+
+Analizas el pipeline de leads de La Caja Chica, servicio financiero chileno.
+Campos de cada lead: full_name, heat_score (0-100), priority_label (hot/warm/follow_up/cold),
+stage (new/contacted/qualified/docs_pending/ready_to_schedule/ready_to_operate/operated/dormant/lost),
+source_channel, assigned_to, created_at, last_interaction_at.
+
+Si la pregunta NO es sobre leads o el pipeline comercial, responde: {"not_applicable":true,"answer":""}
+De lo contrario: {"not_applicable":false,"answer":"respuesta concisa aquí"}
+Responde ÚNICAMENTE con JSON válido.`
+
+  const leadsText = (leads ?? []).map((l: Record<string, unknown>) =>
+    `• ${l.full_name} | score:${l.heat_score} | ${l.priority_label} | ${l.stage}` +
+    ` | canal:${l.source_channel ?? '?'} | asignado:${l.assigned_to ?? '—'}` +
+    ` | registrado:${new Date(l.created_at as string).toLocaleDateString('es-CL')}` +
+    (l.last_interaction_at ? ` | contacto:${new Date(l.last_interaction_at as string).toLocaleDateString('es-CL')}` : '')
+  ).join('\n')
+
+  const userContent = `=== LEADS (top ${leads?.length ?? 0} por heat score) ===\n${leadsText}\n\n=== PREGUNTA ===\n${userQuery}`
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model:    'gpt-4o',
+      max_tokens: 600,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userContent },
+      ],
+    }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.statusText)
+    throw new Error(`OpenAI API ${res.status}: ${err}`)
+  }
+
+  const data = await res.json()
+  const text: string = data.choices?.[0]?.message?.content ?? ''
+  if (!text) throw new Error('Respuesta vacía del agente')
+
+  try {
+    const parsed = JSON.parse(extractJSON(text))
+    return {
+      not_applicable: Boolean(parsed.not_applicable),
+      answer:         String(parsed.answer ?? ''),
+    }
+  } catch {
+    return { not_applicable: false, answer: text }
+  }
+}

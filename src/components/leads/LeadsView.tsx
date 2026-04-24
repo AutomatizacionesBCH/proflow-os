@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Plus, Search, Filter, Users, CheckCircle2, Flame, Clock, Zap, Moon,
-  RefreshCw, Brain, Loader2, X, ChevronDown, ChevronUp,
+  RefreshCw, Brain, Loader2, X, ChevronDown, ChevronUp, Sparkles, AlertTriangle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Lead, LeadStage, LeadChannel } from '@/types'
@@ -14,7 +14,7 @@ import { LeadStatusBadge } from './LeadStatusBadge'
 import { LeadChannelBadge } from './LeadChannelBadge'
 import { LeadForm } from './LeadForm'
 import { convertLead, recalculateAllLeads } from '@/app/leads/actions'
-import { analyzeLeadAction, analyzeAllHotLeadsAction, markRecommendationViewedAction } from '@/app/leads/agent-actions'
+import { analyzeLeadAction, analyzeAllHotLeadsAction, markRecommendationViewedAction, queryLeadsWithAIAction } from '@/app/leads/agent-actions'
 import { TableScroll } from '@/components/ui/TableScroll'
 
 // ── Filtros de etapa ──────────────────────────────────────────
@@ -124,6 +124,13 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
   const [analyzeError, setAnalyzeError]   = useState<string | null>(null)
   const [recs, setRecs]                   = useState<SavedRecommendation[]>(initialRecommendations)
   const [showRecs, setShowRecs]           = useState(initialRecommendations.length > 0)
+
+  // Estado de consulta libre
+  const [showQueryBox, setShowQueryBox]         = useState(false)
+  const [queryText, setQueryText]               = useState('')
+  const [queryResult, setQueryResult]           = useState<string | null>(null)
+  const [queryNotApplicable, setQueryNotApplicable] = useState(false)
+  const [queryLoading, setQueryLoading]         = useState(false)
 
   // ── Stats para KPIs ────────────────────────────────────────
   const stats = useMemo(() => ({
@@ -249,6 +256,24 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
     }
   }
 
+  async function handleQuery() {
+    if (!queryText.trim() || queryLoading) return
+    setQueryLoading(true)
+    setQueryResult(null)
+    setQueryNotApplicable(false)
+    const result = await queryLeadsWithAIAction(queryText.trim())
+    setQueryLoading(false)
+    if (result.success) {
+      if (result.not_applicable) {
+        setQueryNotApplicable(true)
+      } else {
+        setQueryResult(result.answer ?? '')
+      }
+    } else {
+      setAnalyzeError(result.error ?? 'Error al consultar el agente IA')
+    }
+  }
+
   async function handleMarkViewed(recId: string) {
     await markRecommendationViewedAction(recId)
     setRecs(prev => prev.filter(r => r.id !== recId))
@@ -281,6 +306,20 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
             {analyzingAll ? 'Analizando calientes…' : 'Analizar calientes IA'}
           </button>
 
+          {/* Botón consulta libre */}
+          <button
+            onClick={() => { setShowQueryBox(v => !v); setQueryResult(null); setQueryNotApplicable(false) }}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors',
+              showQueryBox
+                ? 'text-purple-200 bg-purple-800/50 border-purple-600/60'
+                : 'text-purple-300 bg-purple-900/30 hover:bg-purple-900/50 border-purple-700/40 hover:border-purple-600/60'
+            )}
+          >
+            <Sparkles className="w-4 h-4" />
+            Consultar IA
+          </button>
+
           {/* Botón recalcular scores */}
           <button
             onClick={handleRecalculate}
@@ -292,6 +331,50 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
           </button>
         </div>
       </div>
+
+      {/* ── Panel de consulta libre ── */}
+      {showQueryBox && (
+        <div className="bg-slate-900 border border-purple-800/30 rounded-xl p-4 space-y-3">
+          <p className="text-xs text-slate-500">Pregunta cualquier cosa sobre los leads. Ej: <span className="text-slate-400 italic">"¿quiénes son los más calientes hoy?", "leads sin contactar esta semana", "¿cuántos warm hay por canal?"</span></p>
+          <div className="flex items-stretch gap-2">
+            <textarea
+              value={queryText}
+              onChange={e => setQueryText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !queryLoading) handleQuery() }}
+              placeholder="Escribe tu consulta aquí…"
+              rows={2}
+              className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder:text-slate-600 outline-none resize-none focus:border-purple-600/60 transition-colors"
+            />
+            <button
+              onClick={handleQuery}
+              disabled={!queryText.trim() || queryLoading}
+              className="px-4 text-sm font-medium text-white bg-purple-700 hover:bg-purple-600 rounded-lg disabled:opacity-50 transition-colors flex items-center gap-2 flex-shrink-0"
+            >
+              {queryLoading
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Sparkles className="w-4 h-4" />
+              }
+              {queryLoading ? 'Consultando…' : 'Consultar'}
+            </button>
+          </div>
+
+          {/* Respuesta */}
+          {queryResult !== null && !queryNotApplicable && (
+            <div className="bg-slate-800/50 rounded-lg px-4 py-3">
+              <p className="text-xs text-purple-400 uppercase tracking-wider mb-2">Respuesta del agente</p>
+              <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{queryResult}</p>
+            </div>
+          )}
+
+          {/* No aplica */}
+          {queryNotApplicable && (
+            <div className="flex items-start gap-2 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+              <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-400">Esta consulta no aplica a los datos del pipeline. Intenta preguntar algo relacionado con leads, scores o etapas.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Error del agente ── */}
       {analyzeError && (

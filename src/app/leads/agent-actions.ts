@@ -52,15 +52,15 @@ export async function analyzeAllHotLeadsAction(): Promise<{
     const supabase = await createClient()
     const db = supabase as any
 
-    // Obtener leads con heat_score > 40, excluyendo operated y lost
+    // Obtener leads con heat_score >= 20 (warm + follow_up), excluyendo operated y lost
     const { data: leads, error } = await db
       .from('leads')
       .select('id')
-      .gt('heat_score', 40)
+      .gte('heat_score', 20)
       .neq('stage', 'operated')
       .neq('stage', 'lost')
       .order('heat_score', { ascending: false })
-      .limit(15) // límite para evitar timeouts
+      .limit(10) // límite para evitar timeouts
 
     if (error) throw new Error(error.message)
     if (!leads || leads.length === 0) return { success: true, count: 0, recommendations: [] }

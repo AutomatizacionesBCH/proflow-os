@@ -242,6 +242,8 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
         return [...result.recommendations!, ...withoutDups]
       })
       setShowRecs(true)
+    } else if (result.success && !result.recommendations?.length) {
+      setAnalyzeError('No se encontraron leads activos para analizar (heat score ≥ 20)')
     } else if (!result.success) {
       setAnalyzeError(result.error ?? 'Error al analizar leads calientes')
     }

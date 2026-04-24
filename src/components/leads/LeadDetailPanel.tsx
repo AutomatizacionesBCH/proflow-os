@@ -9,7 +9,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { Lead, LeadStage } from '@/types'
 import type { SavedRecommendation, BehaviorSignal } from '@/types/agent.types'
-import type { LeadEvent } from '@/types'
+import type { LeadEvent } from '@/types/leads-marketing.types'
 import { LeadStatusBadge } from './LeadStatusBadge'
 import {
   analyzeLeadAction,

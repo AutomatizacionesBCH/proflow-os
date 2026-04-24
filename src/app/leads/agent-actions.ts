@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { analyzeLeadWithAI, queryLeadsData } from '@/lib/agents/lead-intelligence-agent'
 import type { SavedRecommendation, BehaviorSignal } from '@/types/agent.types'
-import type { LeadEvent } from '@/types'
+import type { LeadEvent } from '@/types/leads-marketing.types'
 
 // ── Analizar un lead individual ───────────────────────────────────────────────
 export async function analyzeLeadAction(

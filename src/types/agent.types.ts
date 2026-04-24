@@ -39,3 +39,23 @@ export type BehaviorSignal = {
   description:     string | null
   signal_time:     string
 }
+
+// Análisis del Sales Agent (estrategia de cierre comercial)
+export type SalesAnalysis = {
+  closing_strategy:   string
+  main_objection:     string
+  objection_response: string
+  suggested_message:  string
+  best_channel:       'whatsapp' | 'email' | 'llamada'
+  best_time:          'mañana' | 'tarde' | 'noche' | 'ahora'
+  confidence_score:   number
+  urgency_reason:     string
+  assigned_to:        string
+}
+
+export type SavedSalesAnalysis = SalesAnalysis & {
+  id:         string
+  lead_id:    string
+  lead_name:  string
+  created_at: string
+}

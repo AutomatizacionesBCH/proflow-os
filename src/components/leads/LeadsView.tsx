@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Plus, Search, Filter, Users, CheckCircle2, Flame, Clock, Zap, Moon,
-  RefreshCw, Brain, Loader2, X, ChevronDown, ChevronUp, Sparkles, AlertTriangle,
+  RefreshCw, Brain, Loader2, X, ChevronDown, ChevronUp, Sparkles, AlertTriangle, Target,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Lead, LeadStage, LeadChannel } from '@/types'
@@ -100,10 +100,11 @@ function UrgencyBadge({ urgency }: { urgency: 'alta' | 'media' | 'baja' }) {
 }
 
 type Props = {
-  initialLeads:            Lead[]
-  initialRecommendations?: SavedRecommendation[]
-  recsByLead?:             Record<string, RecSummary>
-  analyzedTodayCount?:     number
+  initialLeads:                   Lead[]
+  initialRecommendations?:        SavedRecommendation[]
+  recsByLead?:                    Record<string, RecSummary>
+  analyzedTodayCount?:            number
+  closingOpportunitiesCount?:     number
 }
 
 export function LeadsView({
@@ -111,6 +112,7 @@ export function LeadsView({
   initialRecommendations = [],
   recsByLead = {},
   analyzedTodayCount = 0,
+  closingOpportunitiesCount = 0,
 }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
@@ -520,7 +522,7 @@ export function LeadsView({
       </div>
 
       {/* ── KPIs gestión ── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-5 gap-3">
         <button
           onClick={() => activateQuickTab('magda')}
           className={cn(
@@ -562,6 +564,14 @@ export function LeadsView({
           <p className="text-xl font-bold text-purple-300 tabular-nums">{analyzedTodayCount}</p>
           <p className="text-xs text-purple-500 mt-0.5">Analizados hoy por IA</p>
         </button>
+        {/* KPI Oportunidades de cierre hoy */}
+        <div className="text-left px-4 py-3 rounded-xl border border-green-800/30 bg-green-900/10">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Target className="w-3.5 h-3.5 text-green-400" />
+          </div>
+          <p className="text-xl font-bold text-green-300 tabular-nums">{closingOpportunitiesCount}</p>
+          <p className="text-xs text-green-600 mt-0.5">Oportunidades de cierre hoy</p>
+        </div>
       </div>
 
       {/* ── Tabs rápidos ── */}

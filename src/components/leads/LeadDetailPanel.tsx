@@ -4,11 +4,11 @@ import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   X, Brain, Loader2, Zap, ChevronDown, ChevronUp,
-  UserCheck, CheckCircle2, AlertCircle,
+  UserCheck, CheckCircle2, AlertCircle, Target, Copy, CheckCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Lead, LeadStage } from '@/types'
-import type { SavedRecommendation, BehaviorSignal } from '@/types/agent.types'
+import type { SavedRecommendation, BehaviorSignal, SavedSalesAnalysis } from '@/types/agent.types'
 import type { LeadEvent } from '@/types/leads-marketing.types'
 import { LeadStatusBadge } from './LeadStatusBadge'
 import {
@@ -18,6 +18,7 @@ import {
   registerSignalAction,
   markRecommendationViewedAction,
 } from '@/app/leads/agent-actions'
+import { analyzeSalesAction } from '@/app/leads/sales-agent-actions'
 import { convertLead } from '@/app/leads/actions'
 import { STAGE_LABELS, STAGE_ORDER } from '@/types/leads-marketing.types'
 
@@ -103,6 +104,12 @@ export function LeadDetailPanel({ lead, onClose, onRefresh }: Props) {
 
   // Contexto adicional para análisis
   const [analysisNotes, setAnalysisNotes] = useState('')
+
+  // Sales Agent
+  const [salesAnalysis,    setSalesAnalysis]    = useState<SavedSalesAnalysis | null>(null)
+  const [analyzingSales,   setAnalyzingSales]   = useState(false)
+  const [salesError,       setSalesError]       = useState<string | null>(null)
+  const [copiedMessage,    setCopiedMessage]    = useState(false)
 
   // Carga inicial
   useEffect(() => {
@@ -196,6 +203,28 @@ export function LeadDetailPanel({ lead, onClose, onRefresh }: Props) {
     setShowSignalForm(false)
     setSignalSuccess(true)
     setTimeout(() => setSignalSuccess(false), 3000)
+  }
+
+  async function handleSalesAnalysis() {
+    setAnalyzingSales(true)
+    setSalesError(null)
+    const result = await analyzeSalesAction(lead.id)
+    setAnalyzingSales(false)
+    if (result.success && result.data) {
+      setSalesAnalysis(result.data)
+    } else {
+      setSalesError(result.error ?? 'Error al generar estrategia de cierre')
+    }
+  }
+
+  async function handleCopyMessage(text: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedMessage(true)
+      setTimeout(() => setCopiedMessage(false), 2000)
+    } catch {
+      // Clipboard no disponible
+    }
   }
 
   const priorityDot =
@@ -508,6 +537,136 @@ export function LeadDetailPanel({ lead, onClose, onRefresh }: Props) {
                       >
                         {analyzing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
                         {analyzing ? 'Analizando…' : 'Re-analizar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </Section>
+
+              {/* ── Estrategia de cierre (Sales Agent) ── */}
+              <Section
+                title={
+                  <span className="flex items-center gap-1.5 text-green-400">
+                    <Target className="w-3.5 h-3.5" />
+                    Estrategia de cierre
+                  </span>
+                }
+                defaultOpen
+              >
+                {salesError && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg mb-2">
+                    <AlertCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                    <p className="text-xs text-red-400">{salesError}</p>
+                  </div>
+                )}
+                {!salesAnalysis ? (
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-slate-600">Genera una estrategia de cierre personalizada con IA.</p>
+                    <button
+                      onClick={handleSalesAnalysis}
+                      disabled={analyzingSales}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-green-300 bg-green-900/30 hover:bg-green-900/50 border border-green-700/40 rounded-md transition-colors disabled:opacity-50 flex-shrink-0 ml-3"
+                    >
+                      {analyzingSales ? <Loader2 className="w-3 h-3 animate-spin" /> : <Target className="w-3 h-3" />}
+                      {analyzingSales ? 'Analizando…' : 'Estrategia de cierre'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3 mt-1">
+                    {/* Probabilidad de cierre */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-slate-500">Probabilidad de cierre</span>
+                        <span className={cn(
+                          'text-sm font-bold tabular-nums',
+                          salesAnalysis.confidence_score >= 70 ? 'text-green-400' :
+                          salesAnalysis.confidence_score >= 50 ? 'text-amber-400' :
+                                                                  'text-slate-400'
+                        )}>
+                          {salesAnalysis.confidence_score}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            'h-full rounded-full transition-all',
+                            salesAnalysis.confidence_score >= 70 ? 'bg-green-500' :
+                            salesAnalysis.confidence_score >= 50 ? 'bg-amber-500' :
+                                                                    'bg-slate-500'
+                          )}
+                          style={{ width: `${salesAnalysis.confidence_score}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Estrategia */}
+                    <div className="bg-green-900/20 border border-green-800/30 rounded-lg px-3 py-2">
+                      <p className="text-xs text-green-400 mb-1">Estrategia recomendada</p>
+                      <p className="text-sm text-slate-200">{salesAnalysis.closing_strategy}</p>
+                    </div>
+
+                    {/* Objeción principal */}
+                    <div className="bg-red-900/10 border border-red-800/20 rounded-lg px-3 py-2">
+                      <p className="text-xs text-red-400 mb-1">Objeción principal detectada</p>
+                      <p className="text-xs text-slate-300">{salesAnalysis.main_objection}</p>
+                      <p className="text-xs text-slate-500 mt-1.5 font-medium">Cómo responderla:</p>
+                      <p className="text-xs text-slate-300 mt-0.5">{salesAnalysis.objection_response}</p>
+                    </div>
+
+                    {/* Mensaje sugerido con botón copiar */}
+                    <div className="bg-slate-800/50 rounded-lg px-3 py-2">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="text-xs text-slate-500">Mensaje sugerido</p>
+                        <button
+                          onClick={() => handleCopyMessage(salesAnalysis.suggested_message)}
+                          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                        >
+                          {copiedMessage
+                            ? <CheckCheck className="w-3 h-3 text-green-400" />
+                            : <Copy className="w-3 h-3" />
+                          }
+                          {copiedMessage ? 'Copiado' : 'Copiar'}
+                        </button>
+                      </div>
+                      <p className="text-xs text-slate-300 italic leading-relaxed">"{salesAnalysis.suggested_message}"</p>
+                    </div>
+
+                    {/* Canal + Horario */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-slate-800/40 rounded-lg px-3 py-2">
+                        <p className="text-xs text-slate-500 mb-0.5">Mejor canal</p>
+                        <p className="text-xs text-slate-300 font-medium capitalize">{salesAnalysis.best_channel}</p>
+                      </div>
+                      <div className="bg-slate-800/40 rounded-lg px-3 py-2">
+                        <p className="text-xs text-slate-500 mb-0.5">Mejor horario</p>
+                        <p className="text-xs text-slate-300 font-medium capitalize">{salesAnalysis.best_time}</p>
+                      </div>
+                    </div>
+
+                    {/* Por qué actuar ahora */}
+                    <div className="bg-amber-900/10 border border-amber-800/20 rounded-lg px-3 py-2">
+                      <p className="text-xs text-amber-400 mb-0.5">Por qué actuar ahora</p>
+                      <p className="text-xs text-slate-300">{salesAnalysis.urgency_reason}</p>
+                    </div>
+
+                    {/* Asignación + Regenerar */}
+                    <div className="flex items-center gap-2 flex-wrap pt-1">
+                      <span className="text-xs text-slate-600">Asignar a:</span>
+                      <span className={cn(
+                        'text-xs px-2 py-0.5 rounded-md font-medium border',
+                        salesAnalysis.assigned_to === 'Magda'
+                          ? 'bg-violet-500/15 text-violet-300 border-violet-500/30'
+                          : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                      )}>
+                        {salesAnalysis.assigned_to}
+                      </span>
+                      <button
+                        onClick={handleSalesAnalysis}
+                        disabled={analyzingSales}
+                        className="ml-auto flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 border border-slate-700 hover:border-slate-600 rounded-md px-2 py-1 transition-colors disabled:opacity-50"
+                      >
+                        {analyzingSales ? <Loader2 className="w-3 h-3 animate-spin" /> : <Target className="w-3 h-3" />}
+                        {analyzingSales ? 'Analizando…' : 'Regenerar'}
                       </button>
                     </div>
                   </div>

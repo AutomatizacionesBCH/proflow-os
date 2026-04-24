@@ -42,7 +42,7 @@ type FormValues = {
   launched_at:  string
 }
 
-function init(editing?: Campaign): FormValues {
+function init(editing?: Campaign, initialValues?: Partial<FormValues>): FormValues {
   if (editing) return {
     name:         editing.name,
     objective:    editing.objective ?? '',
@@ -52,18 +52,27 @@ function init(editing?: Campaign): FormValues {
     status:       editing.status as CampaignStatus,
     launched_at:  editing.launched_at ? editing.launched_at.slice(0, 10) : '',
   }
-  return { name: '', objective: '', audience_id: '', channel: null, copy_version: '', status: 'draft', launched_at: '' }
+  return {
+    name:         initialValues?.name         ?? '',
+    objective:    initialValues?.objective    ?? '',
+    audience_id:  initialValues?.audience_id  ?? '',
+    channel:      initialValues?.channel      ?? null,
+    copy_version: initialValues?.copy_version ?? '',
+    status:       initialValues?.status       ?? 'draft',
+    launched_at:  initialValues?.launched_at  ?? '',
+  }
 }
 
 type Props = {
-  onClose:    () => void
-  onSuccess:  () => void
-  editing?:   Campaign
-  audiencias: { id: string; name: string }[]
+  onClose:        () => void
+  onSuccess:      () => void
+  editing?:       Campaign
+  audiencias:     { id: string; name: string }[]
+  initialValues?: Partial<FormValues>
 }
 
-export function CampanaForm({ onClose, onSuccess, editing, audiencias }: Props) {
-  const [form, setForm]   = useState<FormValues>(() => init(editing))
+export function CampanaForm({ onClose, onSuccess, editing, audiencias, initialValues }: Props) {
+  const [form, setForm]   = useState<FormValues>(() => init(editing, initialValues))
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 

@@ -59,3 +59,22 @@ export type SavedSalesAnalysis = SalesAnalysis & {
   lead_name:  string
   created_at: string
 }
+
+// Propuesta del Marketing Intelligence Agent
+export type MarketingProposal = {
+  audience_name:        string
+  audience_description: string
+  estimated_size:       number
+  campaign_objective:   string
+  suggested_channel:    'whatsapp' | 'email' | 'sms'
+  suggested_copy:       string
+  expected_impact:      string
+  priority:             'alta' | 'media' | 'baja'
+  reasoning:            string
+}
+
+export type SavedMarketingProposal = MarketingProposal & {
+  id:         string
+  status:     'pending' | 'created' | 'discarded'
+  created_at: string
+}

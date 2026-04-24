@@ -92,6 +92,19 @@ export type {
 
 export type MarketingChannel = 'Meta' | 'TikTok' | 'LinkedIn' | 'Twitter/X' | 'referido' | 'otro'
 
+export type {
+  AdPlatform, AccountStatus, AdStatus,
+  RecommendationPriority, RecommendationStatus,
+  AttributionEventType, RecommendationType,
+  MarketingAccount, MarketingAccountInsert,
+  AdCampaign, AdCampaignInsert,
+  AdAdset, AdAdsetInsert,
+  AdAd, AdAdInsert,
+  DailyChannelMetrics, DailyChannelMetricsInsert,
+  AttributionEvent, AttributionEventInsert,
+  MarketingRecommendation, MarketingRecommendationInsert,
+} from './marketing-hub.types'
+
 export type MarketingSpend = {
   id: string
   date: string

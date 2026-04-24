@@ -68,6 +68,15 @@ export async function createOperation(input: CreateOperationInput): Promise<Acti
 
   if (error) return { success: false, error: error.message }
 
+  // Fire-and-forget: registrar atribución
+  const opId = data.id
+  const clientId = input.client_id
+  import('@/app/marketing/attribution-actions')
+    .then(({ updateAttributionOnOperation }) =>
+      updateAttributionOnOperation(clientId, opId)
+    )
+    .catch(err => console.error('[attribution] createOperation:', err))
+
   revalidatePath('/operaciones')
   return { success: true, id: data.id }
 }

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { PageShell }    from '@/components/layout/PageShell'
 import { MarketingView } from '@/components/marketing/MarketingView'
+import { calculateAttributionMetrics } from './attribution-actions'
 import type { Audience, Campaign, CampaignMessage, MarketingSpend } from '@/types'
 
 export const dynamic   = 'force-dynamic'
@@ -19,6 +20,7 @@ export default async function MarketingPage() {
     leadsRes,
     opsRes,
     clientsRes,
+    attributionRes,
   ] = await Promise.all([
     supabase.from('marketing_spend').select('*').order('date', { ascending: false }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -31,6 +33,7 @@ export default async function MarketingPage() {
     (supabase as any).from('leads').select('id, full_name, source_channel, converted_to_client_id, phone').limit(10000),
     supabase.from('operations').select('client_id').limit(10000),
     supabase.from('clients').select('id, full_name, phone, email').limit(5000),
+    calculateAttributionMetrics(),
   ])
 
   // ── Analytics: leads y conversiones por canal ─────────────────────────
@@ -105,6 +108,11 @@ export default async function MarketingPage() {
           opsPerChannel,
           spendPerChannel,
         }}
+        attributionMetrics={
+          attributionRes.success
+            ? attributionRes.data
+            : { byChannel: [], byCampaign: [], totals: { total_clients: 0, total_operations: 0, total_profit_clp: 0, avg_conversion_days: 0 } }
+        }
       />
     </PageShell>
   )

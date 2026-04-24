@@ -96,11 +96,26 @@ export async function recalculateAllLeads(): Promise<ActionResult> {
   return { success: true }
 }
 
-export async function convertLead(id: string): Promise<ActionResult> {
+export async function convertLead(id: string, clientId?: string): Promise<ActionResult> {
   const supabase = await createClient()
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await supabase.from('leads').update({ stage: 'operated' } as any).eq('id', id)
+  const update: any = { stage: 'operated' }
+  if (clientId) update.converted_to_client_id = clientId
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await supabase.from('leads').update(update as any).eq('id', id)
   if (error) return { success: false, error: error.message }
+
+  // Fire-and-forget: registrar atribución si hay client_id
+  if (clientId) {
+    import('@/app/marketing/attribution-actions')
+      .then(({ updateAttributionOnLeadConversion }) =>
+        updateAttributionOnLeadConversion(id, clientId)
+      )
+      .catch(err => console.error('[attribution] convertLead:', err))
+  }
+
   revalidatePath('/leads')
   return { success: true }
 }

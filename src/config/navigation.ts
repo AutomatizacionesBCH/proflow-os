@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Megaphone,
   BookOpen,
+  Lightbulb,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -72,5 +73,11 @@ export const navItems: NavItem[] = [
     href: '/playbooks',
     icon: BookOpen,
     description: 'Estrategias repetibles',
+  },
+  {
+    label: 'Recomendaciones',
+    href: '/recomendaciones',
+    icon: Lightbulb,
+    description: 'Centro de recomendaciones IA',
   },
 ]

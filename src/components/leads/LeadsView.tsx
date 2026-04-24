@@ -9,10 +9,11 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Lead, LeadStage, LeadChannel } from '@/types'
-import type { SavedRecommendation } from '@/types/agent.types'
+import type { SavedRecommendation, RecSummary } from '@/types/agent.types'
 import { LeadStatusBadge } from './LeadStatusBadge'
 import { LeadChannelBadge } from './LeadChannelBadge'
 import { LeadForm } from './LeadForm'
+import { LeadDetailPanel } from './LeadDetailPanel'
 import { convertLead, recalculateAllLeads } from '@/app/leads/actions'
 import { analyzeLeadAction, analyzeAllHotLeadsAction, markRecommendationViewedAction, queryLeadsWithAIAction } from '@/app/leads/agent-actions'
 import { TableScroll } from '@/components/ui/TableScroll'
@@ -99,11 +100,18 @@ function UrgencyBadge({ urgency }: { urgency: 'alta' | 'media' | 'baja' }) {
 }
 
 type Props = {
-  initialLeads:           Lead[]
+  initialLeads:            Lead[]
   initialRecommendations?: SavedRecommendation[]
+  recsByLead?:             Record<string, RecSummary>
+  analyzedTodayCount?:     number
 }
 
-export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) {
+export function LeadsView({
+  initialLeads,
+  initialRecommendations = [],
+  recsByLead = {},
+  analyzedTodayCount = 0,
+}: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
@@ -117,6 +125,12 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null)
   const [converting, setConverting]         = useState<string | null>(null)
   const [recalculating, setRecalculating]   = useState(false)
+
+  // Panel de detalle de lead
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+
+  // Filtro "Sin analizar"
+  const [analyzeFilter, setAnalyzeFilter] = useState<'all' | 'unanalyzed'>('all')
 
   // Estado del agente IA
   const [analyzingLead, setAnalyzingLead] = useState<string | null>(null)
@@ -144,7 +158,8 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
     ).length,
     listosOperar: initialLeads.filter(l => l.stage === 'ready_to_operate').length,
     dormidos:     initialLeads.filter(l => l.stage === 'dormant').length,
-  }), [initialLeads])
+    sinAnalizar:  initialLeads.filter(l => !recsByLead[l.id]).length,
+  }), [initialLeads, recsByLead])
 
   // ── Filtrado ────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -157,6 +172,7 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
         if (channelFilter !== 'todos' && l.source_channel !== channelFilter) return false
         if (priorityFilter && l.priority_label !== priorityFilter) return false
       }
+      if (analyzeFilter === 'unanalyzed' && recsByLead[l.id]) return false
       if (search) {
         const q = search.toLowerCase()
         if (
@@ -169,7 +185,7 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
       }
       return true
     })
-  }, [initialLeads, stageFilter, channelFilter, quickTab, priorityFilter, search])
+  }, [initialLeads, stageFilter, channelFilter, quickTab, priorityFilter, analyzeFilter, recsByLead, search])
 
   function handleSuccess() {
     setShowForm(false)
@@ -196,6 +212,7 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
     setStageFilter('todos')
     setChannelFilter('todos')
     setPriorityFilter(null)
+    setAnalyzeFilter('all')
   }
 
   function activateQuickTab(id: QuickTab) {
@@ -286,6 +303,14 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
           onClose={() => { setShowForm(false); setEditing(undefined) }}
           onSuccess={handleSuccess}
           editing={editing}
+        />
+      )}
+
+      {selectedLead && (
+        <LeadDetailPanel
+          lead={selectedLead}
+          onClose={() => setSelectedLead(null)}
+          onRefresh={() => startTransition(() => router.refresh())}
         />
       )}
 
@@ -464,6 +489,7 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
           color="orange"
           onClick={() => activateQuickTab('hot')}
           active={quickTab === 'hot'}
+          alwaysColor
         />
         <KpiCard
           icon={<Zap className="w-4 h-4 text-amber-400" />}
@@ -472,6 +498,7 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
           color="amber"
           onClick={() => activatePriorityFilter('warm')}
           active={priorityFilter === 'warm' && !quickTab}
+          alwaysColor
         />
         <KpiCard
           icon={<Clock className="w-4 h-4 text-blue-400" />}
@@ -480,6 +507,7 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
           color="blue"
           onClick={() => activatePriorityFilter('follow_up')}
           active={priorityFilter === 'follow_up' && !quickTab}
+          alwaysColor
         />
         <KpiCard
           icon={<Moon className="w-4 h-4 text-slate-400" />}
@@ -492,7 +520,7 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
       </div>
 
       {/* ── KPIs gestión ── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <button
           onClick={() => activateQuickTab('magda')}
           className={cn(
@@ -523,6 +551,17 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
           <p className="text-xl font-bold text-slate-100 tabular-nums">{stats.dormidos}</p>
           <p className="text-xs text-slate-500 mt-0.5">Dormidos reactivables</p>
         </button>
+        {/* KPI Analizados hoy */}
+        <button
+          onClick={() => { resetFilters() }}
+          className="text-left px-4 py-3 rounded-xl border border-purple-800/30 bg-purple-900/10 hover:bg-purple-900/20 transition-all"
+        >
+          <div className="flex items-center gap-1.5 mb-1">
+            <Brain className="w-3.5 h-3.5 text-purple-400" />
+          </div>
+          <p className="text-xl font-bold text-purple-300 tabular-nums">{analyzedTodayCount}</p>
+          <p className="text-xs text-purple-500 mt-0.5">Analizados hoy por IA</p>
+        </button>
       </div>
 
       {/* ── Tabs rápidos ── */}
@@ -543,7 +582,24 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
             </span>
           </button>
         ))}
-        {(quickTab || stageFilter !== 'todos' || channelFilter !== 'todos' || priorityFilter) && (
+        {/* Filtro Sin analizar */}
+        <button
+          onClick={() => {
+            resetFilters()
+            setAnalyzeFilter(prev => prev === 'unanalyzed' ? 'all' : 'unanalyzed')
+          }}
+          className={cn(
+            'px-3 py-1.5 text-xs rounded-md border transition-colors',
+            analyzeFilter === 'unanalyzed'
+              ? 'bg-slate-700/60 text-slate-200 border-slate-500/60'
+              : 'text-slate-400 border-slate-700 hover:border-slate-600 hover:text-slate-300'
+          )}
+        >
+          Sin analizar
+          <span className="ml-1.5 text-slate-500">({stats.sinAnalizar})</span>
+        </button>
+
+        {(quickTab || stageFilter !== 'todos' || channelFilter !== 'todos' || priorityFilter || analyzeFilter !== 'all') && (
           <button
             onClick={resetFilters}
             className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-300 border border-slate-700 rounded-md transition-colors"
@@ -625,7 +681,7 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-800">
-                {['Nombre', 'Teléfono', 'Responsable', '🔥', 'Canal', 'Próxima acción', 'Etapa', 'Registrado', 'Acciones'].map(h => (
+                {['Nombre', 'Teléfono', 'Responsable', '🔥', 'Canal', 'Próxima acción', 'Etapa', 'Última IA', 'Acciones'].map(h => (
                   <th key={h} className="text-left py-3 px-4 text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
@@ -648,12 +704,19 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
                 </tr>
               ) : (
                 filtered.map(lead => {
-                  const hasRec = recs.some(r => r.lead_id === lead.id)
+                  const hasRec    = recs.some(r => r.lead_id === lead.id)
+                  const recSummary = recsByLead[lead.id]
+                  const priorityDot =
+                    lead.priority_label === 'hot'       ? 'bg-red-500' :
+                    lead.priority_label === 'warm'      ? 'bg-amber-400' :
+                    lead.priority_label === 'follow_up' ? 'bg-blue-400' :
+                                                          'bg-slate-600'
                   return (
                     <tr
                       key={lead.id}
+                      onClick={() => setSelectedLead(lead)}
                       className={cn(
-                        'border-b border-slate-800/60 transition-colors hover:bg-slate-800/20',
+                        'border-b border-slate-800/60 transition-colors hover:bg-slate-800/30 cursor-pointer',
                         lead.stage === 'operated' && 'bg-green-500/5',
                         (lead.heat_score >= 80 || lead.priority_label === 'hot') && lead.stage !== 'operated' && 'bg-orange-500/5',
                         hasRec && 'ring-1 ring-inset ring-purple-800/30'
@@ -662,17 +725,15 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
                       {/* Nombre */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
+                          <span className={cn('w-2 h-2 rounded-full flex-shrink-0', priorityDot)} />
                           <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0 text-xs font-medium text-slate-300">
                             {lead.full_name.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex flex-col min-w-0">
-                            <Link
-                              href={`/leads/${lead.id}`}
-                              className="font-medium text-slate-200 whitespace-nowrap hover:text-blue-400 transition-colors"
-                            >
+                            <span className="font-medium text-slate-200 whitespace-nowrap">
                               {lead.full_name}
-                            </Link>
-                            {hasRec && (
+                            </span>
+                            {recSummary && (
                               <span className="text-[10px] text-purple-400 flex items-center gap-0.5">
                                 <Brain className="w-2.5 h-2.5" />
                                 Analizado
@@ -718,12 +779,21 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
                       <td className="py-3 px-4">
                         <LeadStatusBadge status={lead.stage} />
                       </td>
-                      {/* Registrado */}
-                      <td className="py-3 px-4 text-slate-500 font-mono text-xs whitespace-nowrap">
-                        {new Date(lead.created_at).toLocaleDateString('es-CL')}
+                      {/* Última IA */}
+                      <td className="py-3 px-4 max-w-[160px]">
+                        {recSummary ? (
+                          <div>
+                            <p className="text-xs text-slate-300 line-clamp-1">{recSummary.next_best_action}</p>
+                            <p className="text-[10px] text-slate-600 mt-0.5 font-mono">
+                              {new Date(recSummary.created_at).toLocaleDateString('es-CL')}
+                            </p>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-600">Sin analizar</span>
+                        )}
                       </td>
                       {/* Acciones */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {/* Botón analizar con IA */}
                           <button
@@ -781,14 +851,15 @@ export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) 
 
 // ── KpiCard local ─────────────────────────────────────────────
 function KpiCard({
-  icon, label, value, color, onClick, active,
+  icon, label, value, color, onClick, active, alwaysColor = false,
 }: {
-  icon: React.ReactNode
-  label: string
-  value: number
-  color: 'orange' | 'amber' | 'blue' | 'violet' | 'green' | 'slate'
-  onClick: () => void
-  active: boolean
+  icon:         React.ReactNode
+  label:        string
+  value:        number
+  color:        'orange' | 'amber' | 'blue' | 'violet' | 'green' | 'slate'
+  onClick:      () => void
+  active:       boolean
+  alwaysColor?: boolean
 }) {
   const ring = {
     orange: 'border-orange-500/40 bg-orange-500/5',
@@ -798,12 +869,24 @@ function KpiCard({
     green:  'border-green-500/40  bg-green-500/5',
     slate:  'border-slate-600/40  bg-slate-800/40',
   }
+  const subtle = {
+    orange: 'border-orange-900/40 bg-orange-950/20',
+    amber:  'border-amber-900/40  bg-amber-950/20',
+    blue:   'border-blue-900/40   bg-blue-950/20',
+    violet: 'border-violet-900/40 bg-violet-950/20',
+    green:  'border-green-900/40  bg-green-950/20',
+    slate:  'border-slate-800     bg-slate-900',
+  }
   return (
     <button
       onClick={onClick}
       className={cn(
         'text-left p-4 rounded-xl border transition-all',
-        active ? ring[color] : 'border-slate-800 bg-slate-900 hover:border-slate-700'
+        active
+          ? ring[color]
+          : alwaysColor
+            ? `${subtle[color]} hover:${ring[color]}`
+            : 'border-slate-800 bg-slate-900 hover:border-slate-700'
       )}
     >
       <div className="flex items-center justify-between mb-3">

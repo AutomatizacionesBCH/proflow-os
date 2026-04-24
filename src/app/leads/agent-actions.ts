@@ -1,8 +1,10 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 import { analyzeLeadWithAI, queryLeadsData } from '@/lib/agents/lead-intelligence-agent'
-import type { SavedRecommendation } from '@/types/agent.types'
+import type { SavedRecommendation, BehaviorSignal } from '@/types/agent.types'
+import type { LeadEvent } from '@/types'
 
 // ── Analizar un lead individual ───────────────────────────────────────────────
 export async function analyzeLeadAction(
@@ -128,4 +130,92 @@ export async function markRecommendationViewedAction(id: string): Promise<void> 
     .from('marketing_recommendations')
     .update({ viewed_at: new Date().toISOString() })
     .eq('id', id)
+}
+
+// ── Obtener detalle completo de un lead (eventos, señales, última rec) ────────
+export async function getLeadDetailsAction(leadId: string): Promise<{
+  success:             boolean
+  events?:             LeadEvent[]
+  signals?:            BehaviorSignal[]
+  lastRecommendation?: SavedRecommendation | null
+  error?:              string
+}> {
+  try {
+    const supabase = await createClient()
+    const db = supabase as any
+
+    const [eventsRes, signalsRes, recRes] = await Promise.all([
+      db.from('lead_events')
+        .select('*')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: false })
+        .limit(30),
+      db.from('user_behavior_signals')
+        .select('*')
+        .eq('lead_id', leadId)
+        .order('signal_time', { ascending: false })
+        .limit(30),
+      db.from('marketing_recommendations')
+        .select('*')
+        .eq('lead_id', leadId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single(),
+    ])
+
+    return {
+      success:             true,
+      events:              (eventsRes.data ?? []) as LeadEvent[],
+      signals:             (signalsRes.data ?? []) as BehaviorSignal[],
+      lastRecommendation:  recRes.data ? (recRes.data as SavedRecommendation) : null,
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Error desconocido'
+    console.error('[getLeadDetailsAction]', message)
+    return { success: false, error: message }
+  }
+}
+
+// ── Actualizar campos puntuales de un lead ────────────────────────────────────
+export async function updateLeadFieldAction(
+  leadId: string,
+  fields: { stage?: string; assigned_to?: string | null; notes?: string }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const db = supabase as any
+    const { error } = await db
+      .from('leads')
+      .update({ ...fields, updated_at: new Date().toISOString() })
+      .eq('id', leadId)
+    if (error) throw new Error(error.message)
+    revalidatePath('/leads')
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error' }
+  }
+}
+
+// ── Registrar señal de comportamiento ─────────────────────────────────────────
+export async function registerSignalAction(
+  leadId: string,
+  signal: { signal_type: string; sentiment: string; intent_level: string; intensity_score: number; description: string }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient()
+    const db = supabase as any
+    const { error } = await db.from('user_behavior_signals').insert({
+      lead_id:         leadId,
+      signal_time:     new Date().toISOString(),
+      signal_type:     signal.signal_type,
+      sentiment:       signal.sentiment,
+      intent_level:    signal.intent_level,
+      intensity_score: signal.intensity_score,
+      description:     signal.description || null,
+    })
+    if (error) throw new Error(error.message)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : 'Error' }
+  }
 }

@@ -19,3 +19,23 @@ export type SavedRecommendation = AIRecommendation & {
   viewed_at:  string | null
   created_at: string
 }
+
+// Resumen ligero para mapa lead_id → última rec (usado en tabla y página)
+export type RecSummary = {
+  id:               string
+  next_best_action: string
+  urgency:          'alta' | 'media' | 'baja'
+  created_at:       string
+}
+
+// Señal de comportamiento del usuario
+export type BehaviorSignal = {
+  id:              string
+  lead_id:         string
+  signal_type:     string
+  sentiment:       string
+  intent_level:    string
+  intensity_score: number
+  description:     string | null
+  signal_time:     string
+}

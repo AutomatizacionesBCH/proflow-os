@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Plus, Search, Filter, Users, CheckCircle2, Flame, Clock, Zap, Moon, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Lead, LeadStage, LeadChannel } from '@/types'
@@ -415,7 +416,12 @@ export function LeadsView({ initialLeads }: Props) {
                         <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0 text-xs font-medium text-slate-300">
                           {lead.full_name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-medium text-slate-200 whitespace-nowrap">{lead.full_name}</span>
+                        <Link
+                          href={`/leads/${lead.id}`}
+                          className="font-medium text-slate-200 whitespace-nowrap hover:text-blue-400 transition-colors"
+                        >
+                          {lead.full_name}
+                        </Link>
                       </div>
                     </td>
                     {/* Teléfono */}

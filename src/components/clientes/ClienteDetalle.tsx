@@ -10,15 +10,18 @@ import { ClienteForm } from './ClienteForm'
 import { ClienteDocumentos } from './ClienteDocumentos'
 import { OperacionStatusBadge } from '@/components/operaciones/OperacionStatusBadge'
 import { TableScroll } from '@/components/ui/TableScroll'
+import { BehaviorSignals } from '@/components/leads/BehaviorSignals'
+import type { BehaviorSignal } from '@/types/behavior.types'
 
 type Props = {
   cliente: Cliente
   operations: Operation[]
   companies: Company[]
   processors: Processor[]
+  initialSignals?: BehaviorSignal[]
 }
 
-export function ClienteDetalle({ cliente, operations, companies, processors }: Props) {
+export function ClienteDetalle({ cliente, operations, companies, processors, initialSignals = [] }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [showForm, setShowForm] = useState(false)
@@ -157,6 +160,9 @@ export function ClienteDetalle({ cliente, operations, companies, processors }: P
 
           {/* Documentos del cliente */}
           <ClienteDocumentos clienteId={cliente.id} operationIds={operations.map(o => o.id)} />
+
+          {/* Señales de comportamiento */}
+          <BehaviorSignals clientId={cliente.id} initialSignals={initialSignals} />
 
           {/* Historial de operaciones */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">

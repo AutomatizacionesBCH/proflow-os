@@ -105,6 +105,11 @@ export type {
   MarketingRecommendation, MarketingRecommendationInsert,
 } from './marketing-hub.types'
 
+export type {
+  SignalType, SignalSentiment, SignalIntentLevel,
+  BehaviorSignal, BehaviorSignalInsert, SignalsAggregate,
+} from './behavior.types'
+
 export type MarketingSpend = {
   id: string
   date: string

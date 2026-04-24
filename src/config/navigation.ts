@@ -7,6 +7,7 @@ import {
   Wallet,
   TrendingUp,
   Megaphone,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -65,5 +66,11 @@ export const navItems: NavItem[] = [
     href: '/marketing',
     icon: Megaphone,
     description: 'Campañas y canales',
+  },
+  {
+    label: 'Playbooks',
+    href: '/playbooks',
+    icon: BookOpen,
+    description: 'Estrategias repetibles',
   },
 ]

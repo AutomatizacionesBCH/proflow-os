@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { PageShell } from '@/components/layout/PageShell'
 import { ClienteDetalle } from '@/components/clientes/ClienteDetalle'
 import { getSignalsByClient } from '@/app/leads/behavior-actions'
+import { getActivePlaybooksFor, getAllPlaybooks } from '@/app/playbooks/actions'
 import type { Cliente, Company, Operation, Processor } from '@/types'
 
 export const dynamic   = 'force-dynamic'
@@ -16,7 +17,7 @@ export default async function ClienteDetallePage({ params }: Props) {
   const { id } = await params
   const supabase = await createClient()
 
-  const [clienteRes, opsRes, companiesRes, processorsRes, signals] = await Promise.all([
+  const [clienteRes, opsRes, companiesRes, processorsRes, signals, assignments, playbooks] = await Promise.all([
     supabase.from('clients').select('*').eq('id', id).single(),
     supabase
       .from('operations')
@@ -27,6 +28,8 @@ export default async function ClienteDetallePage({ params }: Props) {
     supabase.from('companies').select('id, name, created_at').order('name'),
     supabase.from('processors').select('id, name, type, created_at').order('name'),
     getSignalsByClient(id),
+    getActivePlaybooksFor({ clientId: id }),
+    getAllPlaybooks(),
   ])
 
   if (clienteRes.error || !clienteRes.data) notFound()
@@ -44,6 +47,8 @@ export default async function ClienteDetallePage({ params }: Props) {
         companies={companies}
         processors={processors}
         initialSignals={signals}
+        initialAssignments={assignments}
+        allPlaybooks={playbooks}
       />
     </PageShell>
   )

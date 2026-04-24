@@ -13,15 +13,19 @@ import { LeadStatusBadge } from './LeadStatusBadge'
 import { LeadChannelBadge } from './LeadChannelBadge'
 import { LeadForm } from './LeadForm'
 import { BehaviorSignals } from './BehaviorSignals'
+import { PlaybookAssignment } from '@/components/playbooks/PlaybookAssignment'
 import type { BehaviorSignal } from '@/types/behavior.types'
+import type { AssignmentWithContext, Playbook } from '@/types/playbook.types'
 import type { LeadChannel } from '@/types'
 
 type Props = {
-  lead:           Lead
-  initialSignals: BehaviorSignal[]
+  lead:               Lead
+  initialSignals:     BehaviorSignal[]
+  initialAssignments: AssignmentWithContext[]
+  allPlaybooks:       Playbook[]
 }
 
-export function LeadDetalle({ lead, initialSignals }: Props) {
+export function LeadDetalle({ lead, initialSignals, initialAssignments, allPlaybooks }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [showForm, setShowForm] = useState(false)
@@ -174,8 +178,13 @@ export function LeadDetalle({ lead, initialSignals }: Props) {
           </p>
         </div>
 
-        {/* Columna derecha: señales de comportamiento */}
-        <div className="lg:col-span-2">
+        {/* Columna derecha: playbooks + señales */}
+        <div className="lg:col-span-2 space-y-4">
+          <PlaybookAssignment
+            leadId={lead.id}
+            initialAssignments={initialAssignments}
+            allPlaybooks={allPlaybooks}
+          />
           <BehaviorSignals
             leadId={lead.id}
             initialSignals={initialSignals}

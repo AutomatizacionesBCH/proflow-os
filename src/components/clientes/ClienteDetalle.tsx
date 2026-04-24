@@ -11,17 +11,21 @@ import { ClienteDocumentos } from './ClienteDocumentos'
 import { OperacionStatusBadge } from '@/components/operaciones/OperacionStatusBadge'
 import { TableScroll } from '@/components/ui/TableScroll'
 import { BehaviorSignals } from '@/components/leads/BehaviorSignals'
+import { PlaybookAssignment } from '@/components/playbooks/PlaybookAssignment'
 import type { BehaviorSignal } from '@/types/behavior.types'
+import type { AssignmentWithContext, Playbook } from '@/types/playbook.types'
 
 type Props = {
-  cliente: Cliente
-  operations: Operation[]
-  companies: Company[]
-  processors: Processor[]
-  initialSignals?: BehaviorSignal[]
+  cliente:            Cliente
+  operations:         Operation[]
+  companies:          Company[]
+  processors:         Processor[]
+  initialSignals?:    BehaviorSignal[]
+  initialAssignments?: AssignmentWithContext[]
+  allPlaybooks?:      Playbook[]
 }
 
-export function ClienteDetalle({ cliente, operations, companies, processors, initialSignals = [] }: Props) {
+export function ClienteDetalle({ cliente, operations, companies, processors, initialSignals = [], initialAssignments = [], allPlaybooks = [] }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [showForm, setShowForm] = useState(false)
@@ -160,6 +164,13 @@ export function ClienteDetalle({ cliente, operations, companies, processors, ini
 
           {/* Documentos del cliente */}
           <ClienteDocumentos clienteId={cliente.id} operationIds={operations.map(o => o.id)} />
+
+          {/* Playbooks asignados */}
+          <PlaybookAssignment
+            clientId={cliente.id}
+            initialAssignments={initialAssignments}
+            allPlaybooks={allPlaybooks}
+          />
 
           {/* Señales de comportamiento */}
           <BehaviorSignals clientId={cliente.id} initialSignals={initialSignals} />

@@ -110,6 +110,14 @@ export type {
   BehaviorSignal, BehaviorSignalInsert, SignalsAggregate,
 } from './behavior.types'
 
+export type {
+  PlaybookCategory, PlaybookTargetSegment, PlaybookStepActionType, AssignmentStatus,
+  Playbook, PlaybookInsert,
+  PlaybookStep, PlaybookStepInsert,
+  PlaybookAssignment, PlaybookAssignmentInsert,
+  AssignmentWithContext,
+} from './playbook.types'
+
 export type MarketingSpend = {
   id: string
   date: string

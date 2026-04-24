@@ -205,6 +205,36 @@ export async function queryLeadsData(
   const supabase = await createClient()
   const db = supabase as any
 
+  // Estadísticas reales del pipeline completo
+  const [
+    { count: total },
+    { count: cHot },
+    { count: cWarm },
+    { count: cFollowUp },
+    { count: cCold },
+    { count: cOperated },
+    { count: cLost },
+    { count: cNew },
+    { count: cContacted },
+    { count: cQualified },
+    { count: cDormant },
+    { count: cReadyOp },
+  ] = await Promise.all([
+    db.from('leads').select('*', { count: 'exact', head: true }),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('priority_label', 'hot'),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('priority_label', 'warm'),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('priority_label', 'follow_up'),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('priority_label', 'cold'),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('stage', 'operated'),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('stage', 'lost'),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('stage', 'new'),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('stage', 'contacted'),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('stage', 'qualified'),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('stage', 'dormant'),
+    db.from('leads').select('*', { count: 'exact', head: true }).eq('stage', 'ready_to_operate'),
+  ])
+
+  // Top 60 leads por heat score para detalle
   const { data: leads } = await db
     .from('leads')
     .select('full_name, heat_score, priority_label, stage, source_channel, assigned_to, created_at, last_interaction_at')
@@ -222,9 +252,17 @@ Campos de cada lead: full_name, heat_score (0-100), priority_label (hot/warm/fol
 stage (new/contacted/qualified/docs_pending/ready_to_schedule/ready_to_operate/operated/dormant/lost),
 source_channel, assigned_to, created_at, last_interaction_at.
 
+Se te entregan estadísticas REALES del pipeline completo y una lista de los leads más relevantes para detalle.
+Usa las estadísticas para preguntas de totales o conteos, y la lista de leads para preguntas de detalle o nombres.
+
 Si la pregunta NO es sobre leads o el pipeline comercial, responde: {"not_applicable":true,"answer":""}
 De lo contrario: {"not_applicable":false,"answer":"respuesta concisa aquí"}
 Responde ÚNICAMENTE con JSON válido.`
+
+  const statsText = `=== ESTADÍSTICAS REALES DEL PIPELINE COMPLETO ===
+Total de leads: ${total ?? 0}
+Por prioridad: hot=${cHot ?? 0}, warm=${cWarm ?? 0}, follow_up=${cFollowUp ?? 0}, cold=${cCold ?? 0}
+Por etapa: new=${cNew ?? 0}, contacted=${cContacted ?? 0}, qualified=${cQualified ?? 0}, ready_to_operate=${cReadyOp ?? 0}, operated=${cOperated ?? 0}, dormant=${cDormant ?? 0}, lost=${cLost ?? 0}`
 
   const leadsText = (leads ?? []).map((l: Record<string, unknown>) =>
     `• ${l.full_name} | score:${l.heat_score} | ${l.priority_label} | ${l.stage}` +
@@ -233,7 +271,7 @@ Responde ÚNICAMENTE con JSON válido.`
     (l.last_interaction_at ? ` | contacto:${new Date(l.last_interaction_at as string).toLocaleDateString('es-CL')}` : '')
   ).join('\n')
 
-  const userContent = `=== LEADS (top ${leads?.length ?? 0} por heat score) ===\n${leadsText}\n\n=== PREGUNTA ===\n${userQuery}`
+  const userContent = `${statsText}\n\n=== TOP ${leads?.length ?? 0} LEADS POR HEAT SCORE (detalle) ===\n${leadsText}\n\n=== PREGUNTA ===\n${userQuery}`
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

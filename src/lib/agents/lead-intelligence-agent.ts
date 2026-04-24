@@ -1,5 +1,5 @@
 // Módulo servidor — NO importar desde Client Components
-// Llama directamente a la API de Anthropic via fetch (sin SDK)
+// Llama directamente a la API de OpenAI via fetch (sin SDK)
 
 import { createClient } from '@/lib/supabase/server'
 import type { AIRecommendation } from '@/types/agent.types'
@@ -89,36 +89,37 @@ function extractJSON(text: string): string {
   return match ? match[0] : text
 }
 
-// ── Llamada directa a la API de Anthropic ────────────────────────────────────
-async function callAnthropicAPI(userMessage: string): Promise<AIRecommendation> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY no está configurada en las variables de entorno')
+// ── Llamada directa a la API de OpenAI ───────────────────────────────────────
+async function callOpenAIAPI(userMessage: string): Promise<AIRecommendation> {
+  const apiKey = process.env.OPENAI_API_KEY
+  if (!apiKey) throw new Error('OPENAI_API_KEY no está configurada en las variables de entorno')
 
   const requestBody = {
-    model:      'claude-sonnet-4-6',
+    model:      'gpt-4o',
     max_tokens: 1000,
-    system:     SYSTEM_PROMPT,
-    messages:   [{ role: 'user', content: userMessage }],
+    messages:   [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user',   content: userMessage },
+    ],
   }
 
   const callAPI = async (body: typeof requestBody) => {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method:  'POST',
       headers: {
-        'Content-Type':    'application/json',
-        'x-api-key':       apiKey,
-        'anthropic-version': '2023-06-01',
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
     })
 
     if (!res.ok) {
       const errText = await res.text().catch(() => res.statusText)
-      throw new Error(`Anthropic API ${res.status}: ${errText}`)
+      throw new Error(`OpenAI API ${res.status}: ${errText}`)
     }
 
     const data = await res.json()
-    const text: string = data.content?.[0]?.text ?? ''
+    const text: string = data.choices?.[0]?.message?.content ?? ''
     if (!text) throw new Error('El agente IA devolvió una respuesta vacía')
     return text
   }
@@ -131,13 +132,13 @@ async function callAnthropicAPI(userMessage: string): Promise<AIRecommendation> 
     console.error('[lead-agent] Parseo JSON fallido. Reintentando con instrucción explícita...')
   }
 
-  // Reintento: mismo contenido con instrucción reforzada de JSON puro
+  // Reintento: instrucción reforzada de JSON puro
   const retryBody = {
     ...requestBody,
-    messages: [{
-      role:    'user',
-      content: userMessage + '\n\nIMPORTANTE: Responde SOLO con el JSON, sin ningún texto adicional ni bloques de código.',
-    }],
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user',   content: userMessage + '\n\nIMPORTANTE: Responde SOLO con el JSON, sin ningún texto adicional ni bloques de código.' },
+    ],
   }
   const rawText2 = await callAPI(retryBody)
   try {
@@ -190,6 +191,6 @@ export async function analyzeLeadWithAI(
     formatSignals(signals ?? []),
   ].join('\n')
 
-  const recommendation = await callAnthropicAPI(userMessage)
+  const recommendation = await callOpenAIAPI(userMessage)
   return { ...recommendation, lead_name: lead.full_name as string }
 }

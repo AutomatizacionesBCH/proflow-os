@@ -40,9 +40,9 @@ export default async function LeadsPage() {
 
   // Mapa lead_id → rec más reciente (para tabla y filtro "Sin analizar")
   const recsByLead: Record<string, RecSummary> = {}
-  for (const rec of (allRecsRes.data ?? []) as RecSummary & { lead_id: string }[]) {
-    if (!recsByLead[(rec as any).lead_id]) {
-      recsByLead[(rec as any).lead_id] = rec
+  for (const rec of (allRecsRes.data ?? []) as any[]) {
+    if (rec.lead_id && !recsByLead[rec.lead_id]) {
+      recsByLead[rec.lead_id] = rec as RecSummary
     }
   }
 

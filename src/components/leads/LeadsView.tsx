@@ -3,13 +3,18 @@
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Plus, Search, Filter, Users, CheckCircle2, Flame, Clock, Zap, Moon, RefreshCw } from 'lucide-react'
+import {
+  Plus, Search, Filter, Users, CheckCircle2, Flame, Clock, Zap, Moon,
+  RefreshCw, Brain, Loader2, X, ChevronDown, ChevronUp,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Lead, LeadStage, LeadChannel } from '@/types'
+import type { SavedRecommendation } from '@/types/agent.types'
 import { LeadStatusBadge } from './LeadStatusBadge'
 import { LeadChannelBadge } from './LeadChannelBadge'
 import { LeadForm } from './LeadForm'
 import { convertLead, recalculateAllLeads } from '@/app/leads/actions'
+import { analyzeLeadAction, analyzeAllHotLeadsAction, markRecommendationViewedAction } from '@/app/leads/agent-actions'
 import { TableScroll } from '@/components/ui/TableScroll'
 
 // ── Filtros de etapa ──────────────────────────────────────────
@@ -64,7 +69,7 @@ const QUICK_TABS: { id: QuickTab; label: string; color: string; filter: (l: Lead
   },
 ]
 
-// ── Heat score badge (0-100 scale) ───────────────────────────
+// ── Heat score badge ──────────────────────────────────────────
 function HeatBadge({ score }: { score: number }) {
   const cls =
     score >= 80 ? 'bg-red-500/15 text-red-400 border-red-500/30' :
@@ -80,21 +85,45 @@ function HeatBadge({ score }: { score: number }) {
   )
 }
 
-type Props = { initialLeads: Lead[] }
+// ── Badge de urgencia ─────────────────────────────────────────
+function UrgencyBadge({ urgency }: { urgency: 'alta' | 'media' | 'baja' }) {
+  const cls =
+    urgency === 'alta'  ? 'bg-red-500/15 text-red-400 border-red-500/30' :
+    urgency === 'media' ? 'bg-amber-500/15 text-amber-400 border-amber-500/30' :
+                          'bg-slate-700/60 text-slate-400 border-slate-600/40'
+  return (
+    <span className={cn('inline-block px-2 py-0.5 rounded-md text-xs font-medium border uppercase tracking-wide', cls)}>
+      {urgency}
+    </span>
+  )
+}
 
-export function LeadsView({ initialLeads }: Props) {
+type Props = {
+  initialLeads:           Lead[]
+  initialRecommendations?: SavedRecommendation[]
+}
+
+export function LeadsView({ initialLeads, initialRecommendations = [] }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
 
-  const [showForm, setShowForm]           = useState(false)
-  const [editing, setEditing]             = useState<Lead | undefined>(undefined)
-  const [search, setSearch]               = useState('')
-  const [stageFilter, setStageFilter]     = useState<LeadStage | 'todos'>('todos')
-  const [channelFilter, setChannelFilter] = useState<LeadChannel | 'todos'>('todos')
-  const [quickTab, setQuickTab]           = useState<QuickTab>(null)
+  // Filtros y UI general
+  const [showForm, setShowForm]             = useState(false)
+  const [editing, setEditing]               = useState<Lead | undefined>(undefined)
+  const [search, setSearch]                 = useState('')
+  const [stageFilter, setStageFilter]       = useState<LeadStage | 'todos'>('todos')
+  const [channelFilter, setChannelFilter]   = useState<LeadChannel | 'todos'>('todos')
+  const [quickTab, setQuickTab]             = useState<QuickTab>(null)
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null)
-  const [converting, setConverting]       = useState<string | null>(null)
-  const [recalculating, setRecalculating] = useState(false)
+  const [converting, setConverting]         = useState<string | null>(null)
+  const [recalculating, setRecalculating]   = useState(false)
+
+  // Estado del agente IA
+  const [analyzingLead, setAnalyzingLead] = useState<string | null>(null)
+  const [analyzingAll, setAnalyzingAll]   = useState(false)
+  const [analyzeError, setAnalyzeError]   = useState<string | null>(null)
+  const [recs, setRecs]                   = useState<SavedRecommendation[]>(initialRecommendations)
+  const [showRecs, setShowRecs]           = useState(initialRecommendations.length > 0)
 
   // ── Stats para KPIs ────────────────────────────────────────
   const stats = useMemo(() => ({
@@ -113,7 +142,6 @@ export function LeadsView({ initialLeads }: Props) {
   // ── Filtrado ────────────────────────────────────────────────
   const filtered = useMemo(() => {
     return initialLeads.filter(l => {
-      // Tab rápido tiene prioridad
       if (quickTab) {
         const tab = QUICK_TABS.find(t => t.id === quickTab)
         if (tab && !tab.filter(l)) return false
@@ -186,6 +214,44 @@ export function LeadsView({ initialLeads }: Props) {
     startTransition(() => router.refresh())
   }
 
+  // ── Handlers del agente IA ─────────────────────────────────
+  async function handleAnalyzeLead(leadId: string, ev: React.MouseEvent) {
+    ev.stopPropagation()
+    setAnalyzingLead(leadId)
+    setAnalyzeError(null)
+    const result = await analyzeLeadAction(leadId)
+    setAnalyzingLead(null)
+    if (result.success && result.data) {
+      setRecs(prev => [result.data!, ...prev.filter(r => r.lead_id !== leadId)])
+      setShowRecs(true)
+    } else {
+      setAnalyzeError(result.error ?? 'Error al analizar el lead')
+    }
+  }
+
+  async function handleAnalyzeAll() {
+    setAnalyzingAll(true)
+    setAnalyzeError(null)
+    const result = await analyzeAllHotLeadsAction()
+    setAnalyzingAll(false)
+    if (result.success && result.recommendations?.length) {
+      // Agregar nuevas recomendaciones sin duplicar por lead_id
+      setRecs(prev => {
+        const existingIds = new Set(result.recommendations!.map(r => r.lead_id))
+        const withoutDups = prev.filter(r => !existingIds.has(r.lead_id))
+        return [...result.recommendations!, ...withoutDups]
+      })
+      setShowRecs(true)
+    } else if (!result.success) {
+      setAnalyzeError(result.error ?? 'Error al analizar leads calientes')
+    }
+  }
+
+  async function handleMarkViewed(recId: string) {
+    await markRecommendationViewedAction(recId)
+    setRecs(prev => prev.filter(r => r.id !== recId))
+  }
+
   return (
     <>
       {showForm && (
@@ -196,18 +262,113 @@ export function LeadsView({ initialLeads }: Props) {
         />
       )}
 
-      {/* ── Header con botón recalcular ── */}
-      <div className="flex items-center justify-between">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-3">
         <p className="text-xs text-slate-500">{initialLeads.length} leads en total</p>
-        <button
-          onClick={handleRecalculate}
-          disabled={recalculating}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-slate-500 rounded-lg transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={cn('w-4 h-4 text-orange-400', recalculating && 'animate-spin')} />
-          {recalculating ? 'Calculando scores…' : 'Recalcular scores'}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Botón analizar leads calientes */}
+          <button
+            onClick={handleAnalyzeAll}
+            disabled={analyzingAll || analyzingLead !== null}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-purple-300 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-700/40 hover:border-purple-600/60 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {analyzingAll
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Brain className="w-4 h-4" />
+            }
+            {analyzingAll ? 'Analizando calientes…' : 'Analizar calientes IA'}
+          </button>
+
+          {/* Botón recalcular scores */}
+          <button
+            onClick={handleRecalculate}
+            disabled={recalculating}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-slate-500 rounded-lg transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn('w-4 h-4 text-orange-400', recalculating && 'animate-spin')} />
+            {recalculating ? 'Calculando…' : 'Recalcular scores'}
+          </button>
+        </div>
       </div>
+
+      {/* ── Error del agente ── */}
+      {analyzeError && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+          <p className="text-sm text-red-400">{analyzeError}</p>
+          <button onClick={() => setAnalyzeError(null)} className="text-slate-500 hover:text-slate-300">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Panel de recomendaciones del agente ── */}
+      {recs.length > 0 && (
+        <div className="bg-slate-900 border border-purple-800/30 rounded-xl overflow-hidden">
+          <button
+            onClick={() => setShowRecs(v => !v)}
+            className="w-full px-5 py-4 border-b border-slate-800 flex items-center justify-between hover:bg-slate-800/30 transition-colors"
+          >
+            <h2 className="flex items-center gap-2 text-sm font-medium text-purple-300">
+              <Brain className="w-4 h-4" />
+              Recomendaciones del agente IA
+              <span className="text-xs text-slate-500 font-normal">({recs.length} sin leer)</span>
+            </h2>
+            {showRecs
+              ? <ChevronUp className="w-4 h-4 text-slate-500" />
+              : <ChevronDown className="w-4 h-4 text-slate-500" />
+            }
+          </button>
+
+          {showRecs && (
+            <div className="divide-y divide-slate-800">
+              {recs.map(rec => (
+                <div key={rec.id} className="p-5 space-y-3">
+                  {/* Cabecera de la recomendación */}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-slate-200">{rec.lead_name}</span>
+                      <UrgencyBadge urgency={rec.urgency} />
+                      <span className="text-xs text-slate-500 font-mono">
+                        {new Date(rec.created_at).toLocaleString('es-CL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleMarkViewed(rec.id)}
+                      className="text-xs text-slate-500 hover:text-slate-300 border border-slate-700 hover:border-slate-600 rounded-md px-2 py-1 transition-colors whitespace-nowrap flex-shrink-0"
+                    >
+                      ✓ Visto
+                    </button>
+                  </div>
+
+                  {/* Acción sugerida */}
+                  <div className="bg-purple-900/20 border border-purple-800/30 rounded-lg px-4 py-3">
+                    <p className="text-xs text-purple-400 uppercase tracking-wider mb-1">Próxima acción</p>
+                    <p className="text-sm text-slate-200">{rec.next_best_action}</p>
+                  </div>
+
+                  {/* Mensaje sugerido */}
+                  <div className="bg-slate-800/50 rounded-lg px-4 py-3">
+                    <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Mensaje sugerido</p>
+                    <p className="text-sm text-slate-300 italic leading-relaxed">"{rec.suggested_message}"</p>
+                  </div>
+
+                  {/* Razonamiento */}
+                  <p className="text-xs text-slate-500 leading-relaxed">{rec.reasoning}</p>
+
+                  {/* Meta */}
+                  <div className="flex items-center gap-3 text-xs text-slate-600">
+                    <span>→ {rec.assigned_to_recommendation}</span>
+                    <span>·</span>
+                    <span>{rec.lead_type}</span>
+                    <span>·</span>
+                    <span>heat: {rec.heat_score}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── KPIs prioridad ── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -401,94 +562,120 @@ export function LeadsView({ initialLeads }: Props) {
                   </td>
                 </tr>
               ) : (
-                filtered.map(lead => (
-                  <tr
-                    key={lead.id}
-                    className={cn(
-                      'border-b border-slate-800/60 transition-colors hover:bg-slate-800/20',
-                      lead.stage === 'operated' && 'bg-green-500/5',
-                      (lead.heat_score >= 80 || lead.priority_label === 'hot') && lead.stage !== 'operated' && 'bg-orange-500/5'
-                    )}
-                  >
-                    {/* Nombre */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0 text-xs font-medium text-slate-300">
-                          {lead.full_name.charAt(0).toUpperCase()}
-                        </div>
-                        <Link
-                          href={`/leads/${lead.id}`}
-                          className="font-medium text-slate-200 whitespace-nowrap hover:text-blue-400 transition-colors"
-                        >
-                          {lead.full_name}
-                        </Link>
-                      </div>
-                    </td>
-                    {/* Teléfono */}
-                    <td className="py-3 px-4 text-slate-400 text-xs font-mono whitespace-nowrap">
-                      {lead.phone || '—'}
-                    </td>
-                    {/* Responsable */}
-                    <td className="py-3 px-4 text-xs whitespace-nowrap">
-                      {lead.assigned_to
-                        ? <span className="px-2 py-0.5 rounded-md bg-slate-700/60 text-slate-300 border border-slate-600/40">{lead.assigned_to}</span>
-                        : <span className="text-slate-600">—</span>}
-                    </td>
-                    {/* Heat score */}
-                    <td className="py-3 px-4">
-                      <HeatBadge score={lead.heat_score} />
-                    </td>
-                    {/* Canal */}
-                    <td className="py-3 px-4">
-                      <LeadChannelBadge channel={lead.source_channel as LeadChannel | null} />
-                    </td>
-                    {/* Próxima acción */}
-                    <td className="py-3 px-4 max-w-[180px]">
-                      {lead.next_action ? (
-                        <div>
-                          <p className="text-xs text-slate-300 line-clamp-1">{lead.next_action}</p>
-                          {lead.next_action_due_at && (
-                            <p className="text-xs text-slate-600 mt-0.5">
-                              {new Date(lead.next_action_due_at).toLocaleDateString('es-CL')}
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-slate-600 text-xs">—</span>
+                filtered.map(lead => {
+                  const hasRec = recs.some(r => r.lead_id === lead.id)
+                  return (
+                    <tr
+                      key={lead.id}
+                      className={cn(
+                        'border-b border-slate-800/60 transition-colors hover:bg-slate-800/20',
+                        lead.stage === 'operated' && 'bg-green-500/5',
+                        (lead.heat_score >= 80 || lead.priority_label === 'hot') && lead.stage !== 'operated' && 'bg-orange-500/5',
+                        hasRec && 'ring-1 ring-inset ring-purple-800/30'
                       )}
-                    </td>
-                    {/* Etapa */}
-                    <td className="py-3 px-4">
-                      <LeadStatusBadge status={lead.stage} />
-                    </td>
-                    {/* Registrado */}
-                    <td className="py-3 px-4 text-slate-500 font-mono text-xs whitespace-nowrap">
-                      {new Date(lead.created_at).toLocaleDateString('es-CL')}
-                    </td>
-                    {/* Acciones */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        {lead.stage !== 'operated' && lead.stage !== 'lost' && (
-                          <button
-                            onClick={ev => handleConvert(lead.id, ev)}
-                            disabled={converting === lead.id}
-                            title="Marcar como operado"
-                            className="text-xs text-green-500 hover:text-green-400 border border-green-500/30 hover:border-green-500/50 rounded-md px-2 py-1 transition-colors disabled:opacity-50 flex items-center gap-1"
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            {converting === lead.id ? '…' : 'Operar'}
-                          </button>
+                    >
+                      {/* Nombre */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0 text-xs font-medium text-slate-300">
+                            {lead.full_name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <Link
+                              href={`/leads/${lead.id}`}
+                              className="font-medium text-slate-200 whitespace-nowrap hover:text-blue-400 transition-colors"
+                            >
+                              {lead.full_name}
+                            </Link>
+                            {hasRec && (
+                              <span className="text-[10px] text-purple-400 flex items-center gap-0.5">
+                                <Brain className="w-2.5 h-2.5" />
+                                Analizado
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      {/* Teléfono */}
+                      <td className="py-3 px-4 text-slate-400 text-xs font-mono whitespace-nowrap">
+                        {lead.phone || '—'}
+                      </td>
+                      {/* Responsable */}
+                      <td className="py-3 px-4 text-xs whitespace-nowrap">
+                        {lead.assigned_to
+                          ? <span className="px-2 py-0.5 rounded-md bg-slate-700/60 text-slate-300 border border-slate-600/40">{lead.assigned_to}</span>
+                          : <span className="text-slate-600">—</span>}
+                      </td>
+                      {/* Heat score */}
+                      <td className="py-3 px-4">
+                        <HeatBadge score={lead.heat_score} />
+                      </td>
+                      {/* Canal */}
+                      <td className="py-3 px-4">
+                        <LeadChannelBadge channel={lead.source_channel as LeadChannel | null} />
+                      </td>
+                      {/* Próxima acción */}
+                      <td className="py-3 px-4 max-w-[180px]">
+                        {lead.next_action ? (
+                          <div>
+                            <p className="text-xs text-slate-300 line-clamp-1">{lead.next_action}</p>
+                            {lead.next_action_due_at && (
+                              <p className="text-xs text-slate-600 mt-0.5">
+                                {new Date(lead.next_action_due_at).toLocaleDateString('es-CL')}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-600 text-xs">—</span>
                         )}
-                        <button
-                          onClick={ev => openEdit(lead, ev)}
-                          className="text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 rounded-md px-2 py-1 transition-colors"
-                        >
-                          Editar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      {/* Etapa */}
+                      <td className="py-3 px-4">
+                        <LeadStatusBadge status={lead.stage} />
+                      </td>
+                      {/* Registrado */}
+                      <td className="py-3 px-4 text-slate-500 font-mono text-xs whitespace-nowrap">
+                        {new Date(lead.created_at).toLocaleDateString('es-CL')}
+                      </td>
+                      {/* Acciones */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* Botón analizar con IA */}
+                          <button
+                            onClick={ev => handleAnalyzeLead(lead.id, ev)}
+                            disabled={analyzingLead === lead.id || analyzingAll}
+                            title="Analizar con IA"
+                            className="text-xs text-purple-400 hover:text-purple-300 border border-purple-700/40 hover:border-purple-600/60 rounded-md px-2 py-1 transition-colors disabled:opacity-50 flex items-center gap-1"
+                          >
+                            {analyzingLead === lead.id
+                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                              : <Brain className="w-3 h-3" />
+                            }
+                            {analyzingLead === lead.id ? '…' : 'IA'}
+                          </button>
+
+                          {lead.stage !== 'operated' && lead.stage !== 'lost' && (
+                            <button
+                              onClick={ev => handleConvert(lead.id, ev)}
+                              disabled={converting === lead.id}
+                              title="Marcar como operado"
+                              className="text-xs text-green-500 hover:text-green-400 border border-green-500/30 hover:border-green-500/50 rounded-md px-2 py-1 transition-colors disabled:opacity-50 flex items-center gap-1"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              {converting === lead.id ? '…' : 'Operar'}
+                            </button>
+                          )}
+                          <button
+                            onClick={ev => openEdit(lead, ev)}
+                            className="text-xs text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-600 rounded-md px-2 py-1 transition-colors"
+                          >
+                            Editar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

@@ -3,7 +3,7 @@ import { PageShell }    from '@/components/layout/PageShell'
 import { MarketingView } from '@/components/marketing/MarketingView'
 import { calculateAttributionMetrics } from './attribution-actions'
 import type { Audience, Campaign, CampaignMessage, MarketingSpend } from '@/types'
-import type { SavedMarketingProposal } from '@/types/agent.types'
+import type { SavedMarketingProposal, RevenueAnalysis } from '@/types/agent.types'
 
 export const dynamic   = 'force-dynamic'
 export const revalidate = 0
@@ -23,6 +23,7 @@ export default async function MarketingPage() {
     clientsRes,
     attributionRes,
     proposalsRes,
+    revenueRes,
   ] = await Promise.all([
     supabase.from('marketing_spend').select('*').order('date', { ascending: false }),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,6 +39,8 @@ export default async function MarketingPage() {
     calculateAttributionMetrics(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).from('marketing_proposals').select('*').eq('status', 'pending').order('created_at', { ascending: false }).limit(50),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any).from('revenue_analyses').select('id, analysis_data, created_at').order('created_at', { ascending: false }).limit(1).maybeSingle(),
   ])
 
   // ── Analytics: leads y conversiones por canal ─────────────────────────
@@ -98,11 +101,13 @@ export default async function MarketingPage() {
   return (
     <PageShell title="Marketing" description="Audiencias, campañas, mensajes y analítica">
       <MarketingView
-        initialSpends={     (spendRes.data      ?? []) as MarketingSpend[]}
-        initialAudiencias={ (audienciasRes.data  ?? []) as Audience[]}
-        initialCampanas={   (campanasRes.data    ?? []) as Campaign[]}
-        initialMensajes={   (mensajesRes.data    ?? []) as CampaignMessage[]}
-        initialProposals={  (proposalsRes.data   ?? []) as SavedMarketingProposal[]}
+        initialSpends={          (spendRes.data      ?? []) as MarketingSpend[]}
+        initialAudiencias={      (audienciasRes.data  ?? []) as Audience[]}
+        initialCampanas={        (campanasRes.data    ?? []) as Campaign[]}
+        initialMensajes={        (mensajesRes.data    ?? []) as CampaignMessage[]}
+        initialProposals={       (proposalsRes.data   ?? []) as SavedMarketingProposal[]}
+        initialRevenueAnalysis={ revenueRes.data?.analysis_data as RevenueAnalysis ?? null }
+        lastRevenueAnalyzedAt={  revenueRes.data?.created_at ?? null }
         audienciasMap={audienciasMap}
         messageCounts={messageCounts}
         leadsMap={leadsMap}

@@ -78,3 +78,38 @@ export type SavedMarketingProposal = MarketingProposal & {
   status:     'pending' | 'created' | 'discarded'
   created_at: string
 }
+
+// Análisis del Revenue Agent (estrategia de negocio completa)
+export type RevenueRecommendation = {
+  title:           string
+  description:     string
+  expected_impact: string
+  action_required: string
+  priority:        'alta' | 'media' | 'baja'
+  category:        'marketing' | 'operaciones' | 'caja' | 'clientes' | 'procesadores'
+}
+
+export type RevenueChannelPerformance = {
+  channel_name:    string
+  leads_generated: number
+  conversion_rate: number
+  revenue_clp:     number
+  profit_clp:      number
+  cost_clp:        number
+  roi:             number
+  recommendation:  'subir' | 'mantener' | 'bajar'
+}
+
+export type RevenueAnalysis = {
+  business_summary:    string
+  top_opportunities:   string[]
+  top_risks:           string[]
+  recommendations:     RevenueRecommendation[]
+  channel_performance: RevenueChannelPerformance[]
+}
+
+export type SavedRevenueAnalysis = {
+  id:            string
+  analysis_data: RevenueAnalysis
+  created_at:    string
+}

@@ -3,6 +3,7 @@ import { PageShell } from '@/components/layout/PageShell'
 import { formatCLP, formatUSD, cn } from '@/lib/utils'
 import { OperacionStatusBadge } from '@/components/operaciones/OperacionStatusBadge'
 import type { OperationStatus, MarketingChannel } from '@/types'
+import type { RevenueAnalysis } from '@/types/agent.types'
 import {
   DollarSign,
   TrendingUp,
@@ -13,6 +14,7 @@ import {
   Building2,
 } from 'lucide-react'
 import { TableScroll } from '@/components/ui/TableScroll'
+import { RevenueAgentView } from '@/components/dashboard/RevenueAgentView'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -36,6 +38,8 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const today = new Date().toISOString().slice(0, 10)
 
+  const db = supabase as any
+
   const [
     opsAllRes,
     opsRecentRes,
@@ -44,6 +48,7 @@ export default async function DashboardPage() {
     leadsAllRes,
     cashRes,
     processorsRes,
+    revenueRes,
   ] = await Promise.all([
     supabase
       .from('operations')
@@ -74,6 +79,12 @@ export default async function DashboardPage() {
       .from('processors')
       .select('id, name, status')
       .order('name'),
+    db
+      .from('revenue_analyses')
+      .select('id, analysis_data, created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ])
 
   // KPI calculations
@@ -102,6 +113,7 @@ export default async function DashboardPage() {
   const caja        = cashRes.data?.[0] ?? null
   const processors  = processorsRes.data ?? []
   const recentOps   = opsRecentRes.data ?? []
+  const latestRevenue = revenueRes.data ?? null
 
   return (
     <PageShell title="Dashboard" description="Resumen ejecutivo en tiempo real">
@@ -295,6 +307,14 @@ export default async function DashboardPage() {
             })}
           </div>
         )}
+      </div>
+
+      {/* ── Análisis Estratégico (Revenue Agent) ─────────────── */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
+        <RevenueAgentView
+          initialAnalysis={latestRevenue?.analysis_data as RevenueAnalysis ?? null}
+          lastAnalyzedAt={latestRevenue?.created_at ?? null}
+        />
       </div>
 
     </PageShell>

@@ -1,17 +1,18 @@
 'use client'
 
 import { useState } from 'react'
-import { Users, Megaphone, MessageSquare, BarChart2, Target, Sparkles } from 'lucide-react'
+import { Users, Megaphone, MessageSquare, BarChart2, Target, Sparkles, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Audience, Campaign, CampaignMessage, MarketingSpend } from '@/types'
 import type { AttributionMetrics } from '@/app/marketing/attribution-actions'
-import type { SavedMarketingProposal } from '@/types/agent.types'
+import type { SavedMarketingProposal, RevenueAnalysis } from '@/types/agent.types'
 import { AudienciasView }  from './AudienciasView'
 import { CampanasView }    from './CampanasView'
 import { MensajesView }    from './MensajesView'
 import { AnaliticaView }   from './AnaliticaView'
 import { AtribucionView }  from './AtribucionView'
 import { PropuestasView }  from './PropuestasView'
+import { RevenueAgentView } from '@/components/dashboard/RevenueAgentView'
 
 type AnalyticsData = {
   leadsPerChannel:       Record<string, number>
@@ -24,26 +25,29 @@ type LeadInfo   = { full_name: string; phone: string | null }
 type ClientInfo = { full_name: string; phone: string | null; email: string | null }
 
 type Props = {
-  initialSpends:       MarketingSpend[]
-  initialAudiencias:   Audience[]
-  initialCampanas:     Campaign[]
-  initialMensajes:     CampaignMessage[]
-  initialProposals:    SavedMarketingProposal[]
-  audienciasMap:       Record<string, string>
-  messageCounts:       Record<string, number>
-  leadsMap:            Record<string, LeadInfo>
-  clientsMap:          Record<string, ClientInfo>
-  analyticsData:       AnalyticsData
-  attributionMetrics:  AttributionMetrics
+  initialSpends:          MarketingSpend[]
+  initialAudiencias:      Audience[]
+  initialCampanas:        Campaign[]
+  initialMensajes:        CampaignMessage[]
+  initialProposals:       SavedMarketingProposal[]
+  initialRevenueAnalysis: RevenueAnalysis | null
+  lastRevenueAnalyzedAt:  string | null
+  audienciasMap:          Record<string, string>
+  messageCounts:          Record<string, number>
+  leadsMap:               Record<string, LeadInfo>
+  clientsMap:             Record<string, ClientInfo>
+  analyticsData:          AnalyticsData
+  attributionMetrics:     AttributionMetrics
 }
 
 const TABS = [
-  { id: 'propuestas',  label: 'Propuestas IA',   icon: Sparkles },
-  { id: 'audiencias',  label: 'Audiencias',       icon: Users },
-  { id: 'campanas',    label: 'Campañas',         icon: Megaphone },
-  { id: 'mensajes',    label: 'Mensajes',         icon: MessageSquare },
-  { id: 'analitica',   label: 'Analítica',        icon: BarChart2 },
-  { id: 'atribucion',  label: 'Atribución Real',  icon: Target },
+  { id: 'propuestas',  label: 'Propuestas IA',    icon: Sparkles },
+  { id: 'audiencias',  label: 'Audiencias',        icon: Users },
+  { id: 'campanas',    label: 'Campañas',          icon: Megaphone },
+  { id: 'mensajes',    label: 'Mensajes',          icon: MessageSquare },
+  { id: 'analitica',   label: 'Analítica',         icon: BarChart2 },
+  { id: 'atribucion',  label: 'Atribución Real',   icon: Target },
+  { id: 'negocio',     label: 'Análisis de Negocio', icon: TrendingUp },
 ] as const
 
 type TabId = typeof TABS[number]['id']
@@ -54,6 +58,8 @@ export function MarketingView({
   initialCampanas,
   initialMensajes,
   initialProposals,
+  initialRevenueAnalysis,
+  lastRevenueAnalyzedAt,
   audienciasMap,
   messageCounts,
   leadsMap,
@@ -87,7 +93,8 @@ export function MarketingView({
                   ? 'bg-slate-800 text-slate-100 shadow-sm'
                   : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50',
                 t.id === 'atribucion'  && active && 'text-green-400',
-                t.id === 'propuestas'  && active && 'text-violet-300'
+                t.id === 'propuestas'  && active && 'text-violet-300',
+                t.id === 'negocio'     && active && 'text-emerald-300'
               )}
             >
               <Icon className="w-4 h-4" />
@@ -136,6 +143,12 @@ export function MarketingView({
         )}
         {tab === 'atribucion' && (
           <AtribucionView initialMetrics={attributionMetrics} />
+        )}
+        {tab === 'negocio' && (
+          <RevenueAgentView
+            initialAnalysis={initialRevenueAnalysis}
+            lastAnalyzedAt={lastRevenueAnalyzedAt}
+          />
         )}
       </div>
     </div>
